@@ -1,3 +1,5 @@
+---
+version: null
 meta:
   environment: python
   toolchain:
