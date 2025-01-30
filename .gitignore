@@ -1,0 +1,41 @@
+# Файлы Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Виртуальное окружение
+venv/
+ENV/
+
+# База данных и резервные копии
+# *.db
+# *.db-journal
+# data/backups/
+
+# Логи
+*.log
+
+# Специфичные для Replit
+.config
+.upm/
+.pythonlibs/
+.breakpoints
+.replit.nix
+.cache/
