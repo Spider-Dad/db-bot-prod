@@ -154,59 +154,96 @@ class Database:
             logger.error(f"Ошибка инициализации настроек: {str(e)}")
             raise
 
-    def get_upcoming_birthdays(self, days_ahead: int = 3) -> List[Dict]:
+    def get_max_days_before(self) -> int:
         """
-        Получить предстоящие дни рождения в диапазоне [сегодня, сегодня + days_ahead] дней.
-        Учитывает переход через год (например, 31 декабря → 1 января).
-
-        Args:
-            days_ahead: За сколько дней вперед искать дни рождения
+        Получить максимальное значение days_before из активных настроек уведомлений.
 
         Returns:
-            List[Dict]: Список словарей с информацией о днях рождения
+            int: Максимальное количество дней для предварительных уведомлений
+        """
+        try:
+            with self.get_connection() as conn:
+                result = conn.execute("""
+                    SELECT MAX(days_before) as max_days
+                    FROM notification_settings
+                    WHERE is_active = 1
+                """).fetchone()
+
+                max_days = result['max_days'] if result and result['max_days'] is not None else 0
+                logger.info(f"Максимальное количество дней для уведомлений: {max_days}")
+                return max_days
+
+        except Exception as e:
+            logger.error(f"Ошибка получения максимального количества дней: {str(e)}")
+            return 0    
+    
+    def get_upcoming_birthdays(self, days_ahead: int = None) -> List[Dict]:
+        """
+        Получить дни рождения для конкретной даты или диапазона дат.
+
+        Args:
+            days_ahead: Через сколько дней будет день рождения. 
+                       Если None, возвращает все дни рождения в диапазоне [сегодня, сегодня + макс_дней]
+
+        Returns:
+            List[Dict]: Список пользователей с их днями рождения
         """
         try:
             # Получаем текущую дату в московском времени
             moscow_tz = pytz.timezone('Europe/Moscow')
             current_date = datetime.now(moscow_tz).date()
 
-            # Рассчитываем целевую дату
-            target_date = current_date + timedelta(days=days_ahead)
-
-            # Преобразуем даты в строки "MM-DD" для сравнения без года
-            current_md = current_date.strftime("%m-%d")
-            target_md = target_date.strftime("%m-%d")
-
             with self.get_connection() as conn:
-                if current_md <= target_md:
-                    # Диапазон в пределах одного года
+                if days_ahead is not None:
+                    # Для конкретной даты
+                    target_date = current_date + timedelta(days=days_ahead)
                     query = """
                         SELECT * FROM users 
-                        WHERE 
-                            strftime('%m-%d', birth_date) BETWEEN ? AND ?
-                            AND is_subscribed = 1
+                        WHERE strftime('%m-%d', birth_date) = strftime('%m-%d', ?)
+                        AND is_subscribed = 1
                     """
-                    params = (current_md, target_md)
+                    params = (target_date.strftime("%Y-%m-%d"),)
+
                 else:
-                    # Диапазон пересекает конец года (например, 30 декабря → 2 января)
-                    query = """
-                        SELECT * FROM users 
-                        WHERE 
-                            (strftime('%m-%d', birth_date) BETWEEN ? AND '12-31')
-                            OR 
-                            (strftime('%m-%d', birth_date) BETWEEN '01-01' AND ?)
+                    # Для диапазона дат
+                    max_days = self.get_max_days_before()
+                    if max_days == 0:
+                        return []
+
+                    target_date = current_date + timedelta(days=max_days)
+                    current_md = current_date.strftime("%m-%d")
+                    target_md = target_date.strftime("%m-%d")
+
+                    if current_md <= target_md:
+                        query = """
+                            SELECT * FROM users 
+                            WHERE strftime('%m-%d', birth_date) BETWEEN ? AND ?
                             AND is_subscribed = 1
-                    """
-                    params = (current_md, target_md)
+                        """
+                        params = (current_md, target_md)
+                    else:
+                        # Обработка перехода через год
+                        query = """
+                            SELECT * FROM users 
+                            WHERE (strftime('%m-%d', birth_date) >= ? 
+                                  OR strftime('%m-%d', birth_date) <= ?)
+                            AND is_subscribed = 1
+                        """
+                        params = (current_md, target_md)
 
                 results = conn.execute(query, params).fetchall()
                 birthdays = [dict(row) for row in results]
-                logger.info(f"Найдено {len(birthdays)} дней рождения в диапазоне {current_md} — {target_md}")
+
+                if days_ahead is not None:
+                    logger.info(f"Найдено {len(birthdays)} дней рождения на дату {target_date.strftime('%d.%m.%Y')}")
+                else:
+                    logger.info(f"Найдено {len(birthdays)} дней рождения в диапазоне {current_md} — {target_md}")
+
                 return birthdays
-            
+
         except Exception as e:
             logger.error(f"Ошибка получения предстоящих дней рождения: {str(e)}")
-            return []   
+            return []
 
     def get_notification_settings(self) -> List[Dict]:
         """Get all notification settings with their templates"""
