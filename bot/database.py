@@ -156,7 +156,8 @@ class Database:
 
     def get_upcoming_birthdays(self, days_ahead: int = 3) -> List[Dict]:
         """
-        Получить предстоящие дни рождения с учетом московского времени
+        Получить предстоящие дни рождения в диапазоне [сегодня, сегодня + days_ahead] дней.
+        Учитывает переход через год (например, 31 декабря → 1 января).
 
         Args:
             days_ahead: За сколько дней вперед искать дни рождения
@@ -172,20 +173,40 @@ class Database:
             # Рассчитываем целевую дату
             target_date = current_date + timedelta(days=days_ahead)
 
+            # Преобразуем даты в строки "MM-DD" для сравнения без года
+            current_md = current_date.strftime("%m-%d")
+            target_md = target_date.strftime("%m-%d")
+
             with self.get_connection() as conn:
-                results = conn.execute("""
-                    SELECT * FROM users 
-                    WHERE strftime('%m-%d', birth_date) = strftime('%m-%d', ?)
-                    AND is_subscribed = 1
-                """, (target_date.strftime('%Y-%m-%d'),)).fetchall()
+                if current_md <= target_md:
+                    # Диапазон в пределах одного года
+                    query = """
+                        SELECT * FROM users 
+                        WHERE 
+                            strftime('%m-%d', birth_date) BETWEEN ? AND ?
+                            AND is_subscribed = 1
+                    """
+                    params = (current_md, target_md)
+                else:
+                    # Диапазон пересекает конец года (например, 30 декабря → 2 января)
+                    query = """
+                        SELECT * FROM users 
+                        WHERE 
+                            (strftime('%m-%d', birth_date) BETWEEN ? AND '12-31')
+                            OR 
+                            (strftime('%m-%d', birth_date) BETWEEN '01-01' AND ?)
+                            AND is_subscribed = 1
+                    """
+                    params = (current_md, target_md)
 
+                results = conn.execute(query, params).fetchall()
                 birthdays = [dict(row) for row in results]
-                logger.info(f"Найдено {len(birthdays)} дней рождения на {target_date}")
+                logger.info(f"Найдено {len(birthdays)} дней рождения в диапазоне {current_md} — {target_md}")
                 return birthdays
-
+            
         except Exception as e:
             logger.error(f"Ошибка получения предстоящих дней рождения: {str(e)}")
-            return []
+            return []   
 
     def get_notification_settings(self) -> List[Dict]:
         """Get all notification settings with their templates"""
