@@ -193,8 +193,7 @@ class BotHandlers:
                     if not user or not user['is_subscribed']:
                         self.bot.reply_to(
                             message,
-                            "❌ Для просмотра списка дней рождения необходимо подтвердить подписку. "
-                            "Используйте команду /start"
+                            "❌ У тебя нет доступа. Жми /start или подожди, пока администратор добавит тебя."
                         )
                         return False
             return True
@@ -203,8 +202,8 @@ class BotHandlers:
         logger.warning(f"Отказано в доступе пользователю {user_id} к команде {command}")
         self.bot.reply_to(
             message,
-            "❌ У вас нет доступа к этой команде. "
-            "Обратитесь к администратору бота."
+            "❌ <b>Прости, но эта команда доступна только администратору бота.</b>",
+            parse_mode='HTML'
         )
         return False
 
@@ -311,7 +310,7 @@ class BotHandlers:
     def add_user(self, message: telebot.types.Message):
         """Handle /add_user command"""
         if message.from_user.id not in ADMIN_IDS:
-            self.bot.reply_to(message, "❌ <b>Эта команда доступна только администраторам.</b>", parse_mode='HTML')
+            self.bot.reply_to(message, "❌ <b>Прости, но эта команда доступна только администратору бота.</b>", parse_mode='HTML')
             return
 
         try:
