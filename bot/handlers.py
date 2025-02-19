@@ -7,13 +7,12 @@ import logging
 import re # Добавлено для валидации регулярных выражений в set_setting
 from collections import defaultdict
 import json
-
-logger = logging.getLogger(__name__)
-
 from .database import Database
 from .notification_manager import NotificationManager
-from .message_templates import get_welcome_message, format_birthday_reminder, get_new_user_notification, get_template_help
+from .message_templates import get_welcome_message, format_birthday_reminder, get_new_user_notification, get_template_help, get_new_user_request_notification
 from config import ADMIN_IDS
+
+logger = logging.getLogger(__name__)
 
 # Русские названия месяцев с правильными падежами
 MONTHS_RU = {
@@ -246,33 +245,30 @@ class BotHandlers:
             return
 
         if not is_authorized:
-            # Если пользователь не авторизован, отправляем сообщение об отсутствии доступа
-            logger.info(f"Неавторизованная попытка старта от пользователя {user_id}")
-            self.bot.reply_to(
-                message,
-                welcome_message,
-                parse_mode='HTML'
-            )
-            return
-        
-        is_subscribed = bool(user_record['is_subscribed'])
-        logger.info(f"Статус подписки пользователя {user_id}: {is_subscribed}")
+            # Уведомляем администраторов о новом пользователе
+            user_info = {
+                'telegram_id': user_id,
+                'username': user.username,
+                'first_name': user.first_name,
+                'last_name': user.last_name
+            }
+            admin_notification = get_new_user_request_notification(user_info)
+            for admin_id in ADMIN_IDS:
+                try:
+                    self.bot.send_message(
+                        admin_id,
+                        admin_notification,
+                        parse_mode='HTML'
+                    )
+                except Exception as e:
+                    logger.error(f"Ошибка отправки уведомления администратору {admin_id}: {str(e)}")
 
-        if not is_subscribed:
-            # Запрашиваем подтверждение подписки
-            markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
-            markup.add(telebot.types.KeyboardButton('Да'))
-
-            self.bot.reply_to(
-                message,
-                "Для получения уведомлений о днях рождения, пожалуйста, подтвердите своё согласие, "
-                "нажав кнопку 'Да' ниже.",
-                reply_markup=markup,
-                parse_mode='HTML'
-            )
-        else:
-            # Если пользователь авторизован и подписан, отправляем приветственное сообщение
+            # Отправляем сообщение неавторизованному пользователю
             self.bot.reply_to(message, welcome_message, parse_mode='HTML')
+            return
+
+        # Если пользователь авторизован, отправляем приветственное сообщение
+        self.bot.reply_to(message, welcome_message, parse_mode='HTML')
         
 
     def list_birthdays(self, message: telebot.types.Message):
@@ -334,19 +330,19 @@ class BotHandlers:
                 self.bot.reply_to(message, "❌ <b>Неверный формат даты.</b> Используйте YYYY-MM-DD", parse_mode='HTML')
                 return
 
-            # Check if user has started the bot
-            if username not in self.active_users:
-                self.bot.reply_to(
-                    message,
-                    f"⚠️ <b>Не удалось добавить пользователя @{username}.</b>\n"
-                    "<b>Важно:</b> для добавления пользователя необходимо:\n\n"
-                    f"1. Пользователь должен найти бота @{self.bot.get_me().username}\n"
-                    "2. Нажать кнопку START или отправить команду /start\n"
-                    "3. После этого повторить команду добавления пользователя\n\n"
-                    "❗️ Пожалуйста, попросите пользователя выполнить эти шаги и повторите попытку.",
-                    parse_mode='HTML'
-                )
-                return
+            # # Check if user has started the bot
+            # if username not in self.active_users:
+            #     self.bot.reply_to(
+            #         message,
+            #         f"⚠️ <b>Не удалось добавить пользователя @{username}.</b>\n"
+            #         "<b>Важно:</b> для добавления пользователя необходимо:\n\n"
+            #         f"1. Пользователь должен найти бота @{self.bot.get_me().username}\n"
+            #         "2. Нажать кнопку START или отправить команду /start\n"
+            #         "3. После этого повторить команду добавления пользователя\n\n"
+            #         "❗️ Пожалуйста, попросите пользователя выполнить эти шаги и повторите попытку.",
+            #         parse_mode='HTML'
+            #     )
+            #     return
 
             # Get user information from storage
             user_info = self.active_users[username]
@@ -370,7 +366,8 @@ class BotHandlers:
                 username=username,
                 first_name=first_name,
                 last_name=last_name,
-                birth_date=birth_date
+                birth_date=birth_date,
+                is_subscribed=True
             )
 
             if success:

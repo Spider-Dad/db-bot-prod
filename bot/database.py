@@ -267,7 +267,7 @@ class Database:
             return []
 
     def add_user(self, telegram_id: int, username: str, first_name: str, 
-                last_name: str, birth_date: str) -> bool:
+                last_name: str, birth_date: str, is_subscribed: bool) -> bool:
         """Добавление нового пользователя в базу данных"""
         try:
             with self.get_connection() as conn:
@@ -288,9 +288,9 @@ class Database:
             """)
                 
                 conn.execute("""
-                    INSERT INTO users (telegram_id, username, first_name, last_name, birth_date)
-                    VALUES (?, ?, ?, ?, ?)
-                """, (telegram_id, username, first_name, last_name, birth_date))
+                    INSERT INTO users (telegram_id, username, first_name, last_name, birth_date, is_subscribed)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (telegram_id, username, first_name, last_name, birth_date, is_subscribed))
                 return True
         except Exception as e:
             logger.error(f"Error adding user: {str(e)}")
