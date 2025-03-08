@@ -66,11 +66,13 @@ class BotHandlers:
             telebot.types.BotCommand("set_setting", "Добавить настройку уведомлений"),
             telebot.types.BotCommand("edit_setting", "Изменить настройку уведомлений"),
             telebot.types.BotCommand("delete_setting", "Удалить настройку уведомлений"),
-            telebot.types.BotCommand("help_template", "Помощь по шаблонам")
+            telebot.types.BotCommand("help_template", "Помощь по шаблонам"),
+            telebot.types.BotCommand("game2048", "Игра 2048")
         ]
         self.user_commands = [
             telebot.types.BotCommand("start", "Запустить бота"),
-            telebot.types.BotCommand("birthdays", "Список дней рождения")
+            telebot.types.BotCommand("birthdays", "Список дней рождения"),
+            telebot.types.BotCommand("game2048", "Игра 2048")
         ]
 
     def register_handlers(self):
@@ -78,9 +80,13 @@ class BotHandlers:
         # Базовые команды (доступны всем)
         self.bot.message_handler(commands=['start'])(self.start)
         self.bot.message_handler(commands=['birthdays'])(self.list_birthdays)
+        self.bot.message_handler(commands=['game2048'])(self.game2048)
 
         # Обработчик подтверждения подписки
         self.bot.message_handler(func=lambda message: message.text.lower() == 'да')(self.handle_subscription_confirmation)
+
+        # Обработчики callback-запросов
+        self.bot.callback_query_handler(func=lambda call: call.data == 'birthdays')(self.birthdays_callback)
 
         # Административные команды (требуют проверки прав)
         admin_commands = {
@@ -106,7 +112,8 @@ class BotHandlers:
             'set_setting': self.set_setting,
             'edit_setting': self.edit_setting,
             'delete_setting': self.delete_setting,
-            'help_template': self.help_template
+            'help_template': self.help_template,
+            'game2048': self.game2048
         }
 
         for command, handler in admin_commands.items():
@@ -241,6 +248,30 @@ class BotHandlers:
         if is_admin:
             # Если пользователь администратор, отправляем соответствующее сообщение
             self.bot.reply_to(message, welcome_message, parse_mode='HTML')
+
+            # Создаем клавиатуру с кнопками для авторизованных пользователей
+            keyboard = telebot.types.InlineKeyboardMarkup()
+            
+            # Добавляем кнопку для просмотра дней рождения
+            birthdays_button = telebot.types.InlineKeyboardButton(
+                text="🎂 Дни рождения",
+                callback_data="birthdays"
+            )
+            keyboard.add(birthdays_button)
+            
+            # Добавляем кнопку для игры 2048
+            game_button = telebot.types.InlineKeyboardButton(
+                text="🎮 Игра 2048",
+                url="https://t.me/PlayToTime_bot/Game2048"
+            )
+            keyboard.add(game_button)
+
+            self.bot.send_message(
+                message.chat.id,
+                "🎉 <b>Добро пожаловать в Birthday Bot!</b>\n\nВы авторизованы и можете использовать все возможности бота.\n\nВыберите, что вы хотите сделать:",
+                parse_mode='HTML',
+                reply_markup=keyboard
+            )
             return
 
         if not is_authorized:
@@ -269,6 +300,29 @@ class BotHandlers:
         # Если пользователь авторизован, отправляем приветственное сообщение
         self.bot.reply_to(message, welcome_message, parse_mode='HTML')
         
+        # Создаем клавиатуру с кнопками для авторизованных пользователей
+        keyboard = telebot.types.InlineKeyboardMarkup()
+        
+        # Добавляем кнопку для просмотра дней рождения
+        birthdays_button = telebot.types.InlineKeyboardButton(
+            text="🎂 Дни рождения",
+            callback_data="birthdays"
+        )
+        keyboard.add(birthdays_button)
+        
+        # Добавляем кнопку для игры 2048
+        game_button = telebot.types.InlineKeyboardButton(
+            text="🎮 Игра 2048",
+            url="https://t.me/PlayToTime_bot/Game2048"
+        )
+        keyboard.add(game_button)
+        
+        self.bot.send_message(
+            message.chat.id,
+            "🎉 <b>Добро пожаловать в Birthday Bot!</b>\n\nВы авторизованы и можете использовать все возможности бота.\n\nВыберите, что вы хотите сделать:",
+            parse_mode='HTML',
+            reply_markup=keyboard
+        )
 
     def list_birthdays(self, message: telebot.types.Message):
         """Обработка команды /birthdays"""
@@ -1643,6 +1697,62 @@ class BotHandlers:
                 "❌ <b>Произошла ошибка при тестировании шаблона.</b>",
                 parse_mode='HTML'
             )
+
+    def game2048(self, message: telebot.types.Message):
+        """Обработчик команды /game2048 - запуск игры 2048"""
+        user_id = message.from_user.id
+        
+        # Проверяем, авторизован ли пользователь
+        with self.db.get_connection() as conn:
+            user_record = conn.execute(
+                "SELECT telegram_id, is_subscribed FROM users WHERE telegram_id = ?",
+                (user_id,)
+            ).fetchone()
+        
+        # Если пользователь не авторизован, отправляем сообщение об ошибке
+        if not user_record:
+            self.bot.reply_to(
+                message,
+                "⛔ У вас нет доступа к этой функции. Пожалуйста, обратитесь к администратору для получения доступа.",
+                parse_mode='HTML'
+            )
+            return
+        
+        # Создаем кнопку для запуска мини-приложения
+        keyboard = telebot.types.InlineKeyboardMarkup()
+        game_button = telebot.types.InlineKeyboardButton(
+            text="Играть в 2048",
+            url="https://t.me/PlayToTime_bot/Game2048"
+        )
+        keyboard.add(game_button)
+        
+        # Отправляем сообщение с кнопкой
+        self.bot.send_message(
+            message.chat.id,
+            "🎮 <b>Игра 2048</b>\n\nНажмите на кнопку ниже, чтобы запустить игру:",
+            parse_mode='HTML',
+            reply_markup=keyboard
+        )
+
+    def birthdays_callback(self, call: telebot.types.CallbackQuery):
+        """Обработчик callback-запроса для кнопки 'Дни рождения'"""
+        # Создаем фиктивное сообщение для передачи в метод list_birthdays
+        message = telebot.types.Message(
+            message_id=call.message.message_id,
+            from_user=call.from_user,
+            date=call.message.date,
+            chat=call.message.chat,
+            content_type='text',
+            options={},
+            json_string=''
+        )
+        message.text = '/birthdays'
+        
+        # Отвечаем на callback, чтобы убрать индикатор загрузки
+        self.bot.answer_callback_query(call.id)
+        
+        # Вызываем метод list_birthdays с созданным сообщением
+        self.list_birthdays(message)
 
 def validate_template_html(html_text):
     #простая проверка на наличие недопустимых тегов, можно расширить
