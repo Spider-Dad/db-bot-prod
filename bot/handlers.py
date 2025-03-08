@@ -87,6 +87,43 @@ class BotHandlers:
 
         # Обработчики callback-запросов
         self.bot.callback_query_handler(func=lambda call: call.data == 'birthdays')(self.birthdays_callback)
+        
+        # Обработчики callback-запросов для групп команд администратора
+        self.bot.callback_query_handler(func=lambda call: call.data == 'admin_users')(self.admin_users_callback)
+        self.bot.callback_query_handler(func=lambda call: call.data == 'admin_templates')(self.admin_templates_callback)
+        self.bot.callback_query_handler(func=lambda call: call.data == 'admin_notifications')(self.admin_notifications_callback)
+        self.bot.callback_query_handler(func=lambda call: call.data == 'admin_backup')(self.admin_backup_callback)
+        self.bot.callback_query_handler(func=lambda call: call.data == 'back_to_main')(self.back_to_main_callback)
+        
+        # Обработчики callback-запросов для команд администратора
+        command_callbacks = {
+            'cmd_add_user': self.cmd_add_user_callback,
+            'cmd_users': self.cmd_users_callback,
+            'cmd_remove_user': self.cmd_remove_user_callback,
+            'cmd_set_admin': self.cmd_set_admin_callback,
+            'cmd_remove_admin': self.cmd_remove_admin_callback,
+            'cmd_get_templates': self.cmd_get_templates_callback,
+            'cmd_set_template': self.cmd_set_template_callback,
+            'cmd_update_template': self.cmd_update_template_callback,
+            'cmd_test_template': self.cmd_test_template_callback,
+            'cmd_preview_template': self.cmd_preview_template_callback,
+            'cmd_delete_template': self.cmd_delete_template_callback,
+            'cmd_activate_template': self.cmd_activate_template_callback,
+            'cmd_deactivate_template': self.cmd_deactivate_template_callback,
+            'cmd_help_template': self.cmd_help_template_callback,
+            'cmd_get_settings': self.cmd_get_settings_callback,
+            'cmd_toggle_notifications': self.cmd_toggle_notifications_callback,
+            'cmd_set_setting': self.cmd_set_setting_callback,
+            'cmd_edit_setting': self.cmd_edit_setting_callback,
+            'cmd_delete_setting': self.cmd_delete_setting_callback,
+            'cmd_force_notify': self.cmd_force_notify_callback,
+            'cmd_backup': self.cmd_backup_callback,
+            'cmd_list_backups': self.cmd_list_backups_callback,
+            'cmd_restore': self.cmd_restore_callback
+        }
+        
+        for command, handler in command_callbacks.items():
+            self.bot.callback_query_handler(func=lambda call, cmd=command: call.data == cmd)(handler)
 
         # Административные команды (требуют проверки прав)
         admin_commands = {
@@ -242,38 +279,6 @@ class BotHandlers:
         # Определяем, авторизован ли пользователь
         is_authorized = user_record is not None
 
-        # Получаем приветственное сообщение в зависимости от статуса пользователя
-        welcome_message = get_welcome_message(is_admin=is_admin, is_authorized=is_authorized)
-
-        if is_admin:
-            # Если пользователь администратор, отправляем соответствующее сообщение
-            self.bot.reply_to(message, welcome_message, parse_mode='HTML')
-
-            # Создаем клавиатуру с кнопками для авторизованных пользователей
-            keyboard = telebot.types.InlineKeyboardMarkup()
-            
-            # Добавляем кнопку для просмотра дней рождения
-            birthdays_button = telebot.types.InlineKeyboardButton(
-                text="🎂 Дни рождения",
-                callback_data="birthdays"
-            )
-            keyboard.add(birthdays_button)
-            
-            # Добавляем кнопку для игры 2048
-            game_button = telebot.types.InlineKeyboardButton(
-                text="🎮 Игра 2048",
-                url="https://t.me/PlayToTime_bot/Game2048"
-            )
-            keyboard.add(game_button)
-
-            self.bot.send_message(
-                message.chat.id,
-                "🎉 <b>Добро пожаловать в Birthday Bot!</b>\n\nВы авторизованы и можете использовать все возможности бота.\n\nВыберите, что вы хотите сделать:",
-                parse_mode='HTML',
-                reply_markup=keyboard
-            )
-            return
-
         if not is_authorized:
             # Уведомляем администраторов о новом пользователе
             user_info = {
@@ -294,32 +299,74 @@ class BotHandlers:
                     logger.error(f"Ошибка отправки уведомления администратору {admin_id}: {str(e)}")
 
             # Отправляем сообщение неавторизованному пользователю
+            welcome_message = get_welcome_message(is_admin=is_admin, is_authorized=is_authorized)
             self.bot.reply_to(message, welcome_message, parse_mode='HTML')
             return
 
-        # Если пользователь авторизован, отправляем приветственное сообщение
-        self.bot.reply_to(message, welcome_message, parse_mode='HTML')
+        # Создаем клавиатуру в зависимости от роли пользователя
+        if is_admin:
+            # Приветственное сообщение для администратора
+            welcome_text = "Привет! 👋\n\nТы авторизован как Администратор, можешь использовать все возможности бота.\nНиже отображаются доступные команды, сгруппированные по смыслу действий:"
+            
+            # Создаем клавиатуру для администратора с группами команд
+            keyboard = telebot.types.InlineKeyboardMarkup(row_width=2)
+            
+            # Основные команды
+            birthdays_button = telebot.types.InlineKeyboardButton(
+                text="🎂 Дни рождения",
+                callback_data="birthdays"
+            )
+            game_button = telebot.types.InlineKeyboardButton(
+                text="🎮 Игра 2048",
+                url="https://t.me/PlayToTime_bot/Game2048"
+            )
+            
+            # Группы команд для администратора
+            users_button = telebot.types.InlineKeyboardButton(
+                text="👥 Пользователи",
+                callback_data="admin_users"
+            )
+            templates_button = telebot.types.InlineKeyboardButton(
+                text="📋 Шаблоны",
+                callback_data="admin_templates"
+            )
+            notifications_button = telebot.types.InlineKeyboardButton(
+                text="📢 Рассылки",
+                callback_data="admin_notifications"
+            )
+            backup_button = telebot.types.InlineKeyboardButton(
+                text="💾 Резервные копии",
+                callback_data="admin_backup"
+            )
+            
+            # Добавляем кнопки в клавиатуру
+            keyboard.add(birthdays_button, game_button)
+            keyboard.add(users_button, templates_button)
+            keyboard.add(notifications_button, backup_button)
+        else:
+            # Приветственное сообщение для обычного пользователя
+            welcome_text = "Привет! 👋\n\nТы авторизован как Пользователь, тебе доступен следующий функционал:"
+            
+            # Создаем клавиатуру для обычного пользователя
+            keyboard = telebot.types.InlineKeyboardMarkup(row_width=2)
+            
+            # Кнопки для пользователя
+            birthdays_button = telebot.types.InlineKeyboardButton(
+                text="🎂 Дни рождения",
+                callback_data="birthdays"
+            )
+            game_button = telebot.types.InlineKeyboardButton(
+                text="🎮 Игра 2048",
+                url="https://t.me/PlayToTime_bot/Game2048"
+            )
+            
+            # Добавляем кнопки в клавиатуру
+            keyboard.add(birthdays_button, game_button)
         
-        # Создаем клавиатуру с кнопками для авторизованных пользователей
-        keyboard = telebot.types.InlineKeyboardMarkup()
-        
-        # Добавляем кнопку для просмотра дней рождения
-        birthdays_button = telebot.types.InlineKeyboardButton(
-            text="🎂 Дни рождения",
-            callback_data="birthdays"
-        )
-        keyboard.add(birthdays_button)
-        
-        # Добавляем кнопку для игры 2048
-        game_button = telebot.types.InlineKeyboardButton(
-            text="🎮 Игра 2048",
-            url="https://t.me/PlayToTime_bot/Game2048"
-        )
-        keyboard.add(game_button)
-        
+        # Отправляем сообщение с клавиатурой
         self.bot.send_message(
             message.chat.id,
-            "🎉 <b>Добро пожаловать в Birthday Bot!</b>\n\nВы авторизованы и можете использовать все возможности бота.\n\nВыберите, что вы хотите сделать:",
+            welcome_text,
             parse_mode='HTML',
             reply_markup=keyboard
         )
@@ -1753,6 +1800,383 @@ class BotHandlers:
         
         # Вызываем метод list_birthdays с созданным сообщением
         self.list_birthdays(message)
+        
+    def admin_users_callback(self, call: telebot.types.CallbackQuery):
+        """Обработчик callback-запроса для группы команд 'Пользователи'"""
+        # Проверяем, является ли пользователь администратором
+        if call.from_user.id not in ADMIN_IDS:
+            self.bot.answer_callback_query(call.id, "У вас нет прав администратора")
+            return
+            
+        # Создаем клавиатуру с командами для управления пользователями
+        keyboard = telebot.types.InlineKeyboardMarkup(row_width=2)
+        
+        # Кнопки команд
+        add_user_button = telebot.types.InlineKeyboardButton(
+            text="➕ Добавить пользователя",
+            callback_data="cmd_add_user"
+        )
+        users_button = telebot.types.InlineKeyboardButton(
+            text="📋 Справочник пользователей",
+            callback_data="cmd_users"
+        )
+        remove_user_button = telebot.types.InlineKeyboardButton(
+            text="➖ Удалить пользователя",
+            callback_data="cmd_remove_user"
+        )
+        set_admin_button = telebot.types.InlineKeyboardButton(
+            text="👑 Назначить администратора",
+            callback_data="cmd_set_admin"
+        )
+        remove_admin_button = telebot.types.InlineKeyboardButton(
+            text="👤 Отозвать права администратора",
+            callback_data="cmd_remove_admin"
+        )
+        back_button = telebot.types.InlineKeyboardButton(
+            text="🔙 Назад",
+            callback_data="back_to_main"
+        )
+        
+        # Добавляем кнопки в клавиатуру
+        keyboard.add(add_user_button, users_button)
+        keyboard.add(remove_user_button)
+        keyboard.add(set_admin_button, remove_admin_button)
+        keyboard.add(back_button)
+        
+        # Отвечаем на callback
+        self.bot.answer_callback_query(call.id)
+        
+        # Редактируем сообщение
+        self.bot.edit_message_text(
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            text="👥 <b>Управление пользователями</b>\n\nВыберите команду:",
+            parse_mode='HTML',
+            reply_markup=keyboard
+        )
+        
+    def admin_templates_callback(self, call: telebot.types.CallbackQuery):
+        """Обработчик callback-запроса для группы команд 'Шаблоны'"""
+        # Проверяем, является ли пользователь администратором
+        if call.from_user.id not in ADMIN_IDS:
+            self.bot.answer_callback_query(call.id, "У вас нет прав администратора")
+            return
+            
+        # Создаем клавиатуру с командами для управления шаблонами
+        keyboard = telebot.types.InlineKeyboardMarkup(row_width=2)
+        
+        # Кнопки команд
+        get_templates_button = telebot.types.InlineKeyboardButton(
+            text="📋 Список шаблонов",
+            callback_data="cmd_get_templates"
+        )
+        set_template_button = telebot.types.InlineKeyboardButton(
+            text="➕ Добавить шаблон",
+            callback_data="cmd_set_template"
+        )
+        update_template_button = telebot.types.InlineKeyboardButton(
+            text="✏️ Обновить шаблон",
+            callback_data="cmd_update_template"
+        )
+        test_template_button = telebot.types.InlineKeyboardButton(
+            text="🧪 Тест шаблона",
+            callback_data="cmd_test_template"
+        )
+        preview_template_button = telebot.types.InlineKeyboardButton(
+            text="👁️ Предпросмотр шаблона",
+            callback_data="cmd_preview_template"
+        )
+        delete_template_button = telebot.types.InlineKeyboardButton(
+            text="🗑️ Удалить шаблон",
+            callback_data="cmd_delete_template"
+        )
+        activate_template_button = telebot.types.InlineKeyboardButton(
+            text="✅ Активировать шаблон",
+            callback_data="cmd_activate_template"
+        )
+        deactivate_template_button = telebot.types.InlineKeyboardButton(
+            text="❌ Деактивировать шаблон",
+            callback_data="cmd_deactivate_template"
+        )
+        help_template_button = telebot.types.InlineKeyboardButton(
+            text="❓ Помощь по шаблонам",
+            callback_data="cmd_help_template"
+        )
+        back_button = telebot.types.InlineKeyboardButton(
+            text="🔙 Назад",
+            callback_data="back_to_main"
+        )
+        
+        # Добавляем кнопки в клавиатуру
+        keyboard.add(get_templates_button, set_template_button)
+        keyboard.add(update_template_button, test_template_button)
+        keyboard.add(preview_template_button, delete_template_button)
+        keyboard.add(activate_template_button, deactivate_template_button)
+        keyboard.add(help_template_button)
+        keyboard.add(back_button)
+        
+        # Отвечаем на callback
+        self.bot.answer_callback_query(call.id)
+        
+        # Редактируем сообщение
+        self.bot.edit_message_text(
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            text="📋 <b>Управление шаблонами</b>\n\nВыберите команду:",
+            parse_mode='HTML',
+            reply_markup=keyboard
+        )
+        
+    def admin_notifications_callback(self, call: telebot.types.CallbackQuery):
+        """Обработчик callback-запроса для группы команд 'Рассылки'"""
+        # Проверяем, является ли пользователь администратором
+        if call.from_user.id not in ADMIN_IDS:
+            self.bot.answer_callback_query(call.id, "У вас нет прав администратора")
+            return
+            
+        # Создаем клавиатуру с командами для управления рассылками
+        keyboard = telebot.types.InlineKeyboardMarkup(row_width=2)
+        
+        # Кнопки команд
+        get_settings_button = telebot.types.InlineKeyboardButton(
+            text="⚙️ Настройки уведомлений",
+            callback_data="cmd_get_settings"
+        )
+        toggle_notifications_button = telebot.types.InlineKeyboardButton(
+            text="🔔 Управление уведомлениями",
+            callback_data="cmd_toggle_notifications"
+        )
+        set_setting_button = telebot.types.InlineKeyboardButton(
+            text="➕ Добавить настройку",
+            callback_data="cmd_set_setting"
+        )
+        edit_setting_button = telebot.types.InlineKeyboardButton(
+            text="✏️ Изменить настройку",
+            callback_data="cmd_edit_setting"
+        )
+        delete_setting_button = telebot.types.InlineKeyboardButton(
+            text="🗑️ Удалить настройку",
+            callback_data="cmd_delete_setting"
+        )
+        force_notify_button = telebot.types.InlineKeyboardButton(
+            text="📢 Отправить уведомление",
+            callback_data="cmd_force_notify"
+        )
+        back_button = telebot.types.InlineKeyboardButton(
+            text="🔙 Назад",
+            callback_data="back_to_main"
+        )
+        
+        # Добавляем кнопки в клавиатуру
+        keyboard.add(get_settings_button, toggle_notifications_button)
+        keyboard.add(set_setting_button, edit_setting_button)
+        keyboard.add(delete_setting_button, force_notify_button)
+        keyboard.add(back_button)
+        
+        # Отвечаем на callback
+        self.bot.answer_callback_query(call.id)
+        
+        # Редактируем сообщение
+        self.bot.edit_message_text(
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            text="📢 <b>Управление рассылками</b>\n\nВыберите команду:",
+            parse_mode='HTML',
+            reply_markup=keyboard
+        )
+        
+    def admin_backup_callback(self, call: telebot.types.CallbackQuery):
+        """Обработчик callback-запроса для группы команд 'Резервные копии'"""
+        # Проверяем, является ли пользователь администратором
+        if call.from_user.id not in ADMIN_IDS:
+            self.bot.answer_callback_query(call.id, "У вас нет прав администратора")
+            return
+            
+        # Создаем клавиатуру с командами для управления резервными копиями
+        keyboard = telebot.types.InlineKeyboardMarkup(row_width=2)
+        
+        # Кнопки команд
+        backup_button = telebot.types.InlineKeyboardButton(
+            text="💾 Создать резервную копию",
+            callback_data="cmd_backup"
+        )
+        list_backups_button = telebot.types.InlineKeyboardButton(
+            text="📋 Список резервных копий",
+            callback_data="cmd_list_backups"
+        )
+        restore_button = telebot.types.InlineKeyboardButton(
+            text="🔄 Восстановить из копии",
+            callback_data="cmd_restore"
+        )
+        back_button = telebot.types.InlineKeyboardButton(
+            text="🔙 Назад",
+            callback_data="back_to_main"
+        )
+        
+        # Добавляем кнопки в клавиатуру
+        keyboard.add(backup_button, list_backups_button)
+        keyboard.add(restore_button)
+        keyboard.add(back_button)
+        
+        # Отвечаем на callback
+        self.bot.answer_callback_query(call.id)
+        
+        # Редактируем сообщение
+        self.bot.edit_message_text(
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            text="💾 <b>Управление резервными копиями</b>\n\nВыберите команду:",
+            parse_mode='HTML',
+            reply_markup=keyboard
+        )
+        
+    def back_to_main_callback(self, call: telebot.types.CallbackQuery):
+        """Обработчик callback-запроса для кнопки 'Назад'"""
+        # Создаем фиктивное сообщение для передачи в метод start
+        message = telebot.types.Message(
+            message_id=call.message.message_id,
+            from_user=call.from_user,
+            date=call.message.date,
+            chat=call.message.chat,
+            content_type='text',
+            options={},
+            json_string=''
+        )
+        message.text = '/start'
+        
+        # Отвечаем на callback
+        self.bot.answer_callback_query(call.id)
+        
+        # Вызываем метод start с созданным сообщением
+        self.start(message)
+        
+    # Обработчики callback-запросов для команд администратора
+    def cmd_add_user_callback(self, call: telebot.types.CallbackQuery):
+        """Обработчик callback-запроса для команды 'Добавить пользователя'"""
+        self._execute_command_from_callback(call, 'add_user')
+        
+    def cmd_users_callback(self, call: telebot.types.CallbackQuery):
+        """Обработчик callback-запроса для команды 'Справочник пользователей'"""
+        self._execute_command_from_callback(call, 'users')
+        
+    def cmd_remove_user_callback(self, call: telebot.types.CallbackQuery):
+        """Обработчик callback-запроса для команды 'Удалить пользователя'"""
+        self._execute_command_from_callback(call, 'remove_user')
+        
+    def cmd_set_admin_callback(self, call: telebot.types.CallbackQuery):
+        """Обработчик callback-запроса для команды 'Назначить администратора'"""
+        self._execute_command_from_callback(call, 'set_admin')
+        
+    def cmd_remove_admin_callback(self, call: telebot.types.CallbackQuery):
+        """Обработчик callback-запроса для команды 'Отозвать права администратора'"""
+        self._execute_command_from_callback(call, 'remove_admin')
+        
+    def cmd_get_templates_callback(self, call: telebot.types.CallbackQuery):
+        """Обработчик callback-запроса для команды 'Список шаблонов'"""
+        self._execute_command_from_callback(call, 'get_templates')
+        
+    def cmd_set_template_callback(self, call: telebot.types.CallbackQuery):
+        """Обработчик callback-запроса для команды 'Добавить шаблон'"""
+        self._execute_command_from_callback(call, 'set_template')
+        
+    def cmd_update_template_callback(self, call: telebot.types.CallbackQuery):
+        """Обработчик callback-запроса для команды 'Обновить шаблон'"""
+        self._execute_command_from_callback(call, 'update_template')
+        
+    def cmd_test_template_callback(self, call: telebot.types.CallbackQuery):
+        """Обработчик callback-запроса для команды 'Тест шаблона'"""
+        self._execute_command_from_callback(call, 'test_template')
+        
+    def cmd_preview_template_callback(self, call: telebot.types.CallbackQuery):
+        """Обработчик callback-запроса для команды 'Предпросмотр шаблона'"""
+        self._execute_command_from_callback(call, 'preview_template')
+        
+    def cmd_delete_template_callback(self, call: telebot.types.CallbackQuery):
+        """Обработчик callback-запроса для команды 'Удалить шаблон'"""
+        self._execute_command_from_callback(call, 'delete_template')
+        
+    def cmd_activate_template_callback(self, call: telebot.types.CallbackQuery):
+        """Обработчик callback-запроса для команды 'Активировать шаблон'"""
+        self._execute_command_from_callback(call, 'activate_template')
+        
+    def cmd_deactivate_template_callback(self, call: telebot.types.CallbackQuery):
+        """Обработчик callback-запроса для команды 'Деактивировать шаблон'"""
+        self._execute_command_from_callback(call, 'deactivate_template')
+        
+    def cmd_help_template_callback(self, call: telebot.types.CallbackQuery):
+        """Обработчик callback-запроса для команды 'Помощь по шаблонам'"""
+        self._execute_command_from_callback(call, 'help_template')
+        
+    def cmd_get_settings_callback(self, call: telebot.types.CallbackQuery):
+        """Обработчик callback-запроса для команды 'Настройки уведомлений'"""
+        self._execute_command_from_callback(call, 'get_settings')
+        
+    def cmd_toggle_notifications_callback(self, call: telebot.types.CallbackQuery):
+        """Обработчик callback-запроса для команды 'Управление уведомлениями пользователя'"""
+        self._execute_command_from_callback(call, 'toggle_notifications')
+        
+    def cmd_set_setting_callback(self, call: telebot.types.CallbackQuery):
+        """Обработчик callback-запроса для команды 'Добавить настройку уведомлений'"""
+        self._execute_command_from_callback(call, 'set_setting')
+        
+    def cmd_edit_setting_callback(self, call: telebot.types.CallbackQuery):
+        """Обработчик callback-запроса для команды 'Изменить настройку уведомлений'"""
+        self._execute_command_from_callback(call, 'edit_setting')
+        
+    def cmd_delete_setting_callback(self, call: telebot.types.CallbackQuery):
+        """Обработчик callback-запроса для команды 'Удалить настройку уведомлений'"""
+        self._execute_command_from_callback(call, 'delete_setting')
+        
+    def cmd_force_notify_callback(self, call: telebot.types.CallbackQuery):
+        """Обработчик callback-запроса для команды 'Отправить уведомление'"""
+        self._execute_command_from_callback(call, 'force_notify')
+        
+    def cmd_backup_callback(self, call: telebot.types.CallbackQuery):
+        """Обработчик callback-запроса для команды 'Создать резервную копию'"""
+        self._execute_command_from_callback(call, 'backup')
+        
+    def cmd_list_backups_callback(self, call: telebot.types.CallbackQuery):
+        """Обработчик callback-запроса для команды 'Список резервных копий'"""
+        self._execute_command_from_callback(call, 'list_backups')
+        
+    def cmd_restore_callback(self, call: telebot.types.CallbackQuery):
+        """Обработчик callback-запроса для команды 'Восстановить из копии'"""
+        self._execute_command_from_callback(call, 'restore')
+        
+    def _execute_command_from_callback(self, call: telebot.types.CallbackQuery, command: str):
+        """Вспомогательный метод для выполнения команды из callback-запроса"""
+        # Проверяем, является ли пользователь администратором
+        if call.from_user.id not in ADMIN_IDS:
+            self.bot.answer_callback_query(call.id, "У вас нет прав администратора")
+            return
+            
+        # Создаем фиктивное сообщение для передачи в обработчик команды
+        message = telebot.types.Message(
+            message_id=call.message.message_id,
+            from_user=call.from_user,
+            date=call.message.date,
+            chat=call.message.chat,
+            content_type='text',
+            options={},
+            json_string=''
+        )
+        message.text = f'/{command}'
+        
+        # Отвечаем на callback
+        self.bot.answer_callback_query(call.id)
+        
+        # Получаем обработчик команды
+        handler = getattr(self, command, None)
+        
+        # Если обработчик найден, вызываем его
+        if handler:
+            handler(message)
+        else:
+            self.bot.send_message(
+                call.message.chat.id,
+                f"❌ Команда /{command} не найдена",
+                parse_mode='HTML'
+            )
 
 def validate_template_html(html_text):
     #простая проверка на наличие недопустимых тегов, можно расширить
