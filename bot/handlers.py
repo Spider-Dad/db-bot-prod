@@ -59,9 +59,9 @@ class BotHandlers:
             telebot.types.BotCommand("delete_template", "Удалить шаблон"),
             telebot.types.BotCommand("activate_template", "Активировать шаблон"),
             telebot.types.BotCommand("deactivate_template", "Деактивировать шаблон"),
-            telebot.types.BotCommand("backup", "Создать резервную копию"),
+            telebot.types.BotCommand("create_backup", "Создать резервную копию"),
             telebot.types.BotCommand("list_backups", "Список резервных копий"),
-            telebot.types.BotCommand("restore", "Восстановить из копии"),
+            telebot.types.BotCommand("restore_backup", "Восстановить из копии"),
             telebot.types.BotCommand("get_settings", "Настройки уведомлений"),
             telebot.types.BotCommand("set_setting", "Добавить настройку уведомлений"),
             telebot.types.BotCommand("edit_setting", "Изменить настройку уведомлений"),
@@ -142,9 +142,9 @@ class BotHandlers:
             'preview_template': self.preview_template,
             'activate_template': self.activate_template,
             'deactivate_template': self.deactivate_template,
-            'backup': self.create_backup,
+            'create_backup': self.create_backup,
             'list_backups': self.list_backups,
-            'restore': self.restore_backup,
+            'restore_backup': self.restore_backup,
             'get_settings': self.get_settings,
             'set_setting': self.set_setting,
             'edit_setting': self.edit_setting,
@@ -2133,7 +2133,7 @@ class BotHandlers:
         
     def cmd_backup_callback(self, call: telebot.types.CallbackQuery):
         """Обработчик callback-запроса для команды 'Создать резервную копию'"""
-        self._execute_command_from_callback(call, 'backup')
+        self._execute_command_from_callback(call, 'create_backup')
         
     def cmd_list_backups_callback(self, call: telebot.types.CallbackQuery):
         """Обработчик callback-запроса для команды 'Список резервных копий'"""
@@ -2141,7 +2141,7 @@ class BotHandlers:
         
     def cmd_restore_callback(self, call: telebot.types.CallbackQuery):
         """Обработчик callback-запроса для команды 'Восстановить из копии'"""
-        self._execute_command_from_callback(call, 'restore')
+        self._execute_command_from_callback(call, 'restore_backup')
         
     def _execute_command_from_callback(self, call: telebot.types.CallbackQuery, command: str):
         """Вспомогательный метод для выполнения команды из callback-запроса"""
