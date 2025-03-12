@@ -45,7 +45,7 @@ class BotHandlers:
             telebot.types.BotCommand("start", "Запустить бота"),
             telebot.types.BotCommand("birthdays", "Список дней рождения"),
             telebot.types.BotCommand("add_user", "Добавить пользователя"),
-            telebot.types.BotCommand("users", "Справочник пользователей"),
+            telebot.types.BotCommand("get_users_directory", "Справочник пользователей"),
             telebot.types.BotCommand("remove_user", "Удалить пользователя"),
             telebot.types.BotCommand("set_admin", "Назначить администратора"),
             telebot.types.BotCommand("remove_admin", "Отозвать права администратора"),
@@ -128,7 +128,7 @@ class BotHandlers:
         # Административные команды (требуют проверки прав)
         admin_commands = {
             'add_user': self.add_user,
-            'users': self.get_users_directory,
+            'get_users_directory': self.get_users_directory,
             'remove_user': self.remove_user,
             'set_admin': self.set_admin,
             'remove_admin': self.remove_admin,
@@ -2057,7 +2057,7 @@ class BotHandlers:
         
     def cmd_users_callback(self, call: telebot.types.CallbackQuery):
         """Обработчик callback-запроса для команды 'Справочник пользователей'"""
-        self._execute_command_from_callback(call, 'users')
+        self._execute_command_from_callback(call, 'get_users_directory')
         
     def cmd_remove_user_callback(self, call: telebot.types.CallbackQuery):
         """Обработчик callback-запроса для команды 'Удалить пользователя'"""
