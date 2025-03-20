@@ -39,3 +39,6 @@ ENV/
 .breakpoints
 .replit.nix
 .cache/
+
+# Локальная папка с данными
+/data/

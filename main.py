@@ -2,7 +2,7 @@ import logging
 import sys
 import telebot
 import os
-import fcntl
+import platform
 from bot import Database, NotificationManager, BotHandlers
 from config import BOT_TOKEN, DATA_DIR
 
@@ -21,21 +21,30 @@ class SingleInstanceException(Exception):
 def obtain_lock():
     """Получение блокировки для предотвращения запуска нескольких экземпляров"""
     lock_file = os.path.join(DATA_DIR, 'bot.lock')
-    try:
-        # Создаем файл блокировки если его нет
-        lock_fd = open(lock_file, 'w')
-        # Пытаемся получить эксклюзивную блокировку
-        fcntl.lockf(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        # Сохраняем дескриптор файла для поддержания блокировки
-        return lock_fd
-    except IOError:
-        logger.error("Бот уже запущен! Останавливаем этот экземпляр.")
-        raise SingleInstanceException("Бот уже запущен в другом процессе")
+    
+    # Проверяем, запущен ли бот на Windows
+    if platform.system() == 'Windows':
+        logger.info("Запуск на Windows, блокировка файла пропущена")
+        return None
+    else:
+        # Для Linux/Unix используем fcntl
+        import fcntl
+        try:
+            # Создаем файл блокировки если его нет
+            lock_fd = open(lock_file, 'w')
+            # Пытаемся получить эксклюзивную блокировку
+            fcntl.lockf(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            # Сохраняем дескриптор файла для поддержания блокировки
+            return lock_fd
+        except IOError:
+            # Не удалось получить блокировку, значит экземпляр уже запущен
+            logger.error("Не удалось получить блокировку. Возможно, бот уже запущен.")
+            sys.exit(1)
 
 def main():
     """Main function to start the bot"""
     try:
-        # Проверяем, не запущен ли уже бот
+        # Получаем блокировку для предотвращения запуска нескольких экземпляров
         lock_fd = obtain_lock()
 
         # Initialize components
@@ -70,7 +79,7 @@ def main():
         raise
     finally:
         # Освобождаем блокировку при завершении
-        if 'lock_fd' in locals():
+        if lock_fd is not None:
             lock_fd.close()
 
 if __name__ == '__main__':

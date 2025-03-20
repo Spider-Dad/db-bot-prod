@@ -2,6 +2,15 @@ import os
 import logging
 from typing import List
 
+"""
+Конфигурация приложения.
+
+Для локальной разработки данные будут храниться в директории data/ в корне проекта.
+На сервере данные хранятся в абсолютном пути /data/.
+
+Для запуска на сервере установите переменную окружения SERVER_ENV=production.
+"""
+
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -27,8 +36,16 @@ logger.info(f"PHONE_PAY: {PHONE_PAY}")
 logger.info(f"NAME_PAY: {NAME_PAY}")
 
 # Конфигурация базы данных
-# Получаем абсолютный путь к папке data
-DATA_DIR = "/data" # Используем абсолютный путь
+# Определяем, где запущен код - локально или на сервере
+is_server = os.environ.get("SERVER_ENV") == "production"
+
+# Выбираем путь в зависимости от окружения
+if is_server:
+    DATA_DIR = "/data"  # Абсолютный путь на сервере
+else:
+    DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")  # Локальный путь для тестирования
+
+logger.info(f"Используется DATA_DIR: {DATA_DIR} ({'сервер' if is_server else 'локальная разработка'})")
 
 # Проверяем существование директории data и создаем её при необходимости
 if not os.path.exists(DATA_DIR):

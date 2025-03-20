@@ -40,6 +40,96 @@ class BotHandlers:
         self.db.check_table_structure()
         # Временное хранилище для пользователей, начавших диалог с ботом
         self.active_users = defaultdict(dict)
+        
+        # Словарь с описаниями и форматами команд с параметрами
+        self.command_help = {
+            "add_user": {
+                "description": "Добавляет нового пользователя в систему",
+                "format": "/add_user @username [имя] [фамилия] [день рождения в формате ДД.ММ.ГГГГ]",
+                "example": "/add_user @username Иван Иванов 01.01.1990"
+            },
+            "remove_user": {
+                "description": "Удаляет пользователя из системы",
+                "format": "/remove_user @username",
+                "example": "/remove_user @username"
+            },
+            "set_admin": {
+                "description": "Назначает пользователя администратором",
+                "format": "/set_admin @username",
+                "example": "/set_admin @username"
+            },
+            "remove_admin": {
+                "description": "Отзывает права администратора у пользователя",
+                "format": "/remove_admin @username",
+                "example": "/remove_admin @username"
+            },
+            "toggle_notifications": {
+                "description": "Включает или отключает уведомления для пользователя",
+                "format": "/toggle_notifications @username",
+                "example": "/toggle_notifications @username"
+            },
+            "force_notify": {
+                "description": "Отправляет тестовое уведомление пользователю",
+                "format": "/force_notify @username [текст сообщения]",
+                "example": "/force_notify @username Привет, это тестовое уведомление!"
+            },
+            "set_template": {
+                "description": "Добавляет новый шаблон уведомлений",
+                "format": "/set_template &lt;название&gt; &lt;текст шаблона&gt;",
+                "example": "/set_template День_рождения Поздравляем с днем рождения, {name}!"
+            },
+            "update_template": {
+                "description": "Обновляет существующий шаблон уведомлений",
+                "format": "/update_template &lt;id&gt; &lt;новый текст шаблона&gt;",
+                "example": "/update_template 1 Поздравляем с днем рождения, {name}! 🎉"
+            },
+            "test_template": {
+                "description": "Тестирует шаблон с реальными данными пользователя",
+                "format": "/test_template &lt;id&gt; @username",
+                "example": "/test_template 1 @username"
+            },
+            "preview_template": {
+                "description": "Показывает предварительный просмотр шаблона",
+                "format": "/preview_template &lt;id&gt;",
+                "example": "/preview_template 1"
+            },
+            "delete_template": {
+                "description": "Удаляет шаблон уведомлений",
+                "format": "/delete_template &lt;id&gt;",
+                "example": "/delete_template 1"
+            },
+            "activate_template": {
+                "description": "Активирует шаблон уведомлений",
+                "format": "/activate_template &lt;id&gt;",
+                "example": "/activate_template 1"
+            },
+            "deactivate_template": {
+                "description": "Деактивирует шаблон уведомлений",
+                "format": "/deactivate_template &lt;id&gt;",
+                "example": "/deactivate_template 1"
+            },
+            "restore_backup": {
+                "description": "Восстанавливает данные из резервной копии",
+                "format": "/restore_backup &lt;имя файла&gt;",
+                "example": "/restore_backup backup_2023-01-01.json"
+            },
+            "set_setting": {
+                "description": "Добавляет новую настройку уведомлений",
+                "format": "/set_setting &lt;template_id&gt; &lt;days_before&gt; &lt;time&gt;",
+                "example": "/set_setting 1 3 10:00"
+            },
+            "edit_setting": {
+                "description": "Изменяет существующую настройку уведомлений",
+                "format": "/edit_setting &lt;setting_id&gt &lt;days_before&gt &lt;time&gt",
+                "example": "/edit_setting 1 3 10:00"
+            },
+            "delete_setting": {
+                "description": "Удаляет настройку уведомлений",
+                "format": "/delete_setting &lt;setting_id&gt",
+                "example": "/delete_setting 1"
+            }
+        }
+        
         # Списки команд для разных типов пользователей
         self.admin_commands = [
             telebot.types.BotCommand("start", "Запустить бота"),
@@ -250,6 +340,43 @@ class BotHandlers:
             parse_mode='HTML'
         )
         return False
+        
+    def _check_command_params(self, message: telebot.types.Message, min_params: int = 1) -> bool:
+        """
+        Проверяет наличие параметров команды и выводит справку, если параметры отсутствуют
+        
+        Args:
+            message: Сообщение с командой
+            min_params: Минимальное количество параметров (не включая саму команду)
+            
+        Returns:
+            bool: True, если параметры присутствуют, False в противном случае
+        """
+        parts = message.text.split()
+        command = parts[0][1:] if parts[0].startswith('/') else parts[0]
+        
+        # Если параметров достаточно, возвращаем True
+        if len(parts) > min_params:
+            return True
+            
+        # Если команда есть в справочнике, выводим информацию о ней
+        if command in self.command_help:
+            help_info = self.command_help[command]
+            response = f"ℹ️ <b>{command.upper()}</b>\n\n"
+            response += f"<b>Описание:</b> {help_info['description']}\n\n"
+            response += f"<b>Формат:</b>\n{help_info['format']}\n\n"
+            response += f"<b>Пример:</b>\n{help_info['example']}"
+            
+            self.bot.reply_to(message, response, parse_mode='HTML')
+            return False
+        
+        # Если команды нет в справочнике, выводим стандартное сообщение об ошибке
+        self.bot.reply_to(
+            message,
+            f"❌ Неверный формат команды. Используйте /{command} с необходимыми параметрами.",
+            parse_mode='HTML'
+        )
+        return False
 
     def start(self, message: telebot.types.Message):
         """Обработка команды /start"""
@@ -306,7 +433,7 @@ class BotHandlers:
         # Создаем клавиатуру в зависимости от роли пользователя
         if is_admin:
             # Приветственное сообщение для администратора
-            welcome_text = "Привет! 👋\n\nТы авторизован как Администратор, можешь использовать все возможности бота.\nНиже отображаются доступные команды, сгруппированные по смыслу действий:"
+            welcome_text = "Привет! 👋\n\nТы авторизован как Администратор, можешь использовать все возможности бота."
             
             # Создаем клавиатуру для администратора с группами команд
             keyboard = telebot.types.InlineKeyboardMarkup(row_width=2)
@@ -409,40 +536,39 @@ class BotHandlers:
         self.bot.reply_to(message, "\n".join(response), parse_mode='HTML')
 
     def add_user(self, message: telebot.types.Message):
-        """Handle /add_user command"""
-        if message.from_user.id not in ADMIN_IDS:
-            self.bot.reply_to(message, "❌ <b>Прости, но эта команда доступна только администратору бота.</b>", parse_mode='HTML')
+        """Обработка команды /add_user"""
+        if not self._check_access(message):
+            return
+            
+        if not self._check_command_params(message, min_params=1):
             return
 
         try:
-            # Expected format: /add_user @username FirstName LastName YYYY-MM-DD
+            # Разбираем команду на части
             parts = message.text.split()
-            if len(parts) != 5:
-                raise ValueError("Invalid command format")
-
-            _, username, first_name, last_name, birth_date = parts
-            username = username.lstrip('@')
-
-            # Validate date format
-            try:
-                datetime.strptime(birth_date, "%Y-%m-%d")
-            except ValueError:
-                self.bot.reply_to(message, "❌ <b>Неверный формат даты.</b> Используйте YYYY-MM-DD", parse_mode='HTML')
-                return
-
-            # # Check if user has started the bot
-            # if username not in self.active_users:
-            #     self.bot.reply_to(
-            #         message,
-            #         f"⚠️ <b>Не удалось добавить пользователя @{username}.</b>\n"
-            #         "<b>Важно:</b> для добавления пользователя необходимо:\n\n"
-            #         f"1. Пользователь должен найти бота @{self.bot.get_me().username}\n"
-            #         "2. Нажать кнопку START или отправить команду /start\n"
-            #         "3. После этого повторить команду добавления пользователя\n\n"
-            #         "❗️ Пожалуйста, попросите пользователя выполнить эти шаги и повторите попытку.",
-            #         parse_mode='HTML'
-            #     )
-            #     return
+            
+            # Получаем username
+            username = parts[1].lstrip('@')
+            
+            # Получаем имя и фамилию (опционально)
+            first_name = parts[2] if len(parts) > 2 else None
+            last_name = parts[3] if len(parts) > 3 else None
+            
+            # Получаем дату рождения (опционально)
+            birthday = parts[4] if len(parts) > 4 else None
+            
+            # Проверяем формат даты рождения
+            if birthday:
+                try:
+                    # Проверяем формат ДД.ММ.ГГГГ
+                    datetime.strptime(birthday, '%d.%m.%Y')
+                except ValueError:
+                    self.bot.reply_to(
+                        message,
+                        "❌ <b>Неверный формат даты рождения.</b>\nИспользуйте формат ДД.ММ.ГГГГ, например: 01.01.1990",
+                        parse_mode='HTML'
+                    )
+                    return
 
             # Get user information from storage
             user_info = self.active_users[username]
@@ -466,7 +592,7 @@ class BotHandlers:
                 username=username,
                 first_name=first_name,
                 last_name=last_name,
-                birth_date=birth_date,
+                birth_date=birthday,
                 is_subscribed=True
             )
 
@@ -594,15 +720,21 @@ class BotHandlers:
             )
 
     def remove_user(self, message: telebot.types.Message):
-        """Handle /remove_user command"""
+        """Обработка команды /remove_user"""
         if not self._check_access(message):
+            return
+            
+        if not self._check_command_params(message, min_params=1):
             return
 
         try:
-            _, username = message.text.split()
-            username = username.lstrip('@')
-
-            # Find user by username in database
+            # Разбираем команду на части
+            parts = message.text.split()
+            
+            # Получаем username
+            username = parts[1].lstrip('@')
+            
+            # Проверяем существование пользователя
             with self.db.get_connection() as conn:
                 user = conn.execute(
                     "SELECT * FROM users WHERE username = ?",
@@ -636,25 +768,14 @@ class BotHandlers:
         """Обработка команды /force_notify"""
         if not self._check_access(message):
             return
+            
+        if not self._check_command_params(message, min_params=1):
+            return
 
         try:
             # Разбираем команду на части
             parts = message.text.split()
-            if len(parts) < 2:
-                self.bot.reply_to(
-                    message,
-                    "❌ Неверный формат команды.\nИспользуйте:\n"
-                    "/force_notify @username [текст сообщения]\n\n"
-                    "Поддерживаются HTML-теги и эмодзи:\n"
-                    "• <b>Жирный текст</b> ✨\n"
-                    "• <i>Курсив</i> 🎨\n"
-                    "• <code>Моноширинный шрифт</code> 💻\n"
-                    "• 🎉 👋 ⚠️ 🎨 и другие эмодзи ✨\n\n"
-                    "Подробнее о форматировании: /help_template",
-                    parse_mode='HTML'
-                )
-                return
-
+            
             # Получаем username и опциональный текст
             username = parts[1].lstrip('@')
             custom_text = ' '.join(parts[2:]) if len(parts) > 2 else None
@@ -764,29 +885,52 @@ class BotHandlers:
             self.bot.reply_to(message, "Резервных копий не найдено.")
 
     def restore_backup(self, message: telebot.types.Message):
-        """Handle /restore command"""
+        """Обработка команды /restore_backup"""
         if not self._check_access(message):
+            return
+            
+        if not self._check_command_params(message, min_params=1):
             return
 
         try:
-            _, backup_name = message.text.split(maxsplit=1)
-            backup_path = os.path.join(self.db.backup_dir, backup_name)
-
-            if self.db.restore_from_backup(backup_path):
+            # Разбираем команду на части
+            parts = message.text.split()
+            
+            # Получаем имя файла
+            filename = parts[1]
+            
+            # Проверяем существование файла
+            backup_path = os.path.join(self.db.backup_dir, filename)
+            if not os.path.exists(backup_path):
                 self.bot.reply_to(
                     message,
-                    f"✅ База данных успешно восстановлена из копии: {backup_name}"
+                    f"❌ <b>Файл резервной копии не найден:</b> {filename}",
+                    parse_mode='HTML'
+                )
+                return
+                
+            # Восстанавливаем из резервной копии
+            success, msg = self.db.restore_from_backup(filename)
+            
+            if success:
+                self.bot.reply_to(
+                    message,
+                    f"✅ <b>Восстановление выполнено успешно!</b>\n{msg}",
+                    parse_mode='HTML'
                 )
             else:
                 self.bot.reply_to(
                     message,
-                    "❌ Ошибка при восстановлении базы данных. Проверьте логи."
+                    f"❌ <b>Ошибка при восстановлении:</b> {msg}",
+                    parse_mode='HTML'
                 )
-
-        except ValueError:
+                
+        except Exception as e:
+            logger.error(f"Ошибка при восстановлении из резервной копии: {str(e)}")
             self.bot.reply_to(
                 message,
-                "Неверный формат команды. Используйте: /restore <имя_файла_копии>"
+                f"❌ <b>Ошибка при восстановлении:</b> {str(e)}",
+                parse_mode='HTML'
             )
 
     def get_templates(self, message: telebot.types.Message):
@@ -870,31 +1014,32 @@ class BotHandlers:
         return True, ""
 
     def set_template(self, message: telebot.types.Message):
-        """Add new notification template"""
+        """Обработка команды /set_template"""
         if not self._check_access(message):
+            return
+            
+        if not self._check_command_params(message, min_params=2):
             return
 
         try:
-            # Format: /set_template name category text
-            parts = message.text.split(maxsplit=3)
-            if len(parts) != 4:
+            # Разбираем команду на части
+            parts = message.text.split(maxsplit=2)
+            
+            # Получаем название и текст шаблона
+            template_name = parts[1]
+            template_text = parts[2]
+            
+            # Проверяем валидность шаблона
+            is_valid, error_message = self._validate_template(template_text)
+            if not is_valid:
                 self.bot.reply_to(
                     message,
-                    "❌ <b>Неверный формат команды.</b>\n"
-                    "Используйте: /set_template название категория текст_шаблона",
+                    f"❌ <b>Ошибка в шаблоне:</b> {error_message}",
                     parse_mode='HTML'
                 )
                 return
 
-            _, name, category, template = parts
-
-            # Validate template
-            is_valid, error_msg = self._validate_template(template)
-            if not is_valid:
-                self.bot.reply_to(message, error_msg, parse_mode='HTML')
-                return
-
-            success = self.db.add_notification_template(name, template, category)
+            success = self.db.add_notification_template(template_name, template_text, "general")
             if success:
                 self.bot.reply_to(
                     message,
@@ -917,35 +1062,35 @@ class BotHandlers:
             )
 
     def update_template(self, message: telebot.types.Message):
-        """Update existing notification template"""
+        """Обработка команды /update_template"""
         if not self._check_access(message):
+            return
+            
+        if not self._check_command_params(message, min_params=2):
             return
 
         try:
-            # Expected format: /update_template template_id new text here
-            parts = message.text.split()
-            if len(parts) < 3:
+            # Разбираем команду на части
+            parts = message.text.split(maxsplit=2)
+            
+            # Получаем ID и новый текст шаблона
+            template_id = int(parts[1])
+            template_text = parts[2]
+            
+            # Проверяем валидность шаблона
+            is_valid, error_message = self._validate_template(template_text)
+            if not is_valid:
                 self.bot.reply_to(
                     message,
-                    "❌ <b>Неверный формат команды.</b>\n"
-                    "Используйте: /update_template ID текст_шаблона",
+                    f"❌ <b>Ошибка в шаблоне:</b> {error_message}",
                     parse_mode='HTML'
                 )
-                return
-
-            template_id = int(parts[1])
-            new_template = ' '.join(parts[2:])
-
-            # Validate template
-            is_valid, error_msg = self._validate_template(new_template)
-            if not is_valid:
-                self.bot.reply_to(message, error_msg, parse_mode='HTML')
                 return
 
             # Update template
             success, msg = self.db.update_notification_template(
                 template_id=template_id,
-                template=new_template
+                template=template_text
             )
 
             if success:
@@ -977,87 +1122,103 @@ class BotHandlers:
             )
 
     def preview_template(self, message: telebot.types.Message):
-        """Preview template with sample data"""
+        """Обработка команды /preview_template"""
         if not self._check_access(message):
+            return
+        
+        if not self._check_command_params(message, min_params=1):
             return
 
         try:
-            # Format: /preview_template template_text
-            parts = message.text.split(maxsplit=1)
-            if len(parts) != 2:
+            # Разбираем команду на части
+            parts = message.text.split()
+            
+            # Получаем ID шаблона
+            template_id = int(parts[1])
+            
+            # Проверяем существование шаблона
+            with self.db.get_connection() as conn:
+                template = conn.execute(
+                    "SELECT * FROM notification_templates WHERE id = ?",
+                    (template_id,)
+                ).fetchone()
+                
+            if not template:
                 self.bot.reply_to(
                     message,
-                    "❌ <b>Неверный формат команды.</b>\n"
-                    "Используйте: /preview_template текст_шаблона",
+                    "❌ <b>Шаблон не найден.</b>",
                     parse_mode='HTML'
                 )
                 return
-
-            template = parts[1]
-
-            # Validate template
-            is_valid, error_msg = self._validate_template(template)
-            if not is_valid:
-                self.bot.reply_to(message, error_msg, parse_mode='HTML')
-                return
-
-            # Sample data for preview
+                
+            # Получаем текст шаблона
+            template_text = template['template']
+            
+            # Создаем примеры для предпросмотра в нужном формате
+            # (тип_предпросмотра, метка, сообщение)
+            now = datetime.now()
+            today = now.strftime("%d.%m.%Y")
+            tomorrow = (now + timedelta(days=1)).strftime("%d.%m.%Y")
+            three_days = (now + timedelta(days=3)).strftime("%d.%m.%Y")
+            
+            # Подготовим данные для шаблонов
             sample_data = {
-                'name': 'Иван Петров',
-                'first_name': 'Иван',
-                'last_name': 'Петров',
-                'date': '01.01.2024',
-                'date_before': '25.12.2023',
-                'days_until': '7',
-                'phone_pay': '+7 (999) 123-45-67',
-                'name_pay': 'Анна Петрова'
+                "name": "Иван Иванов",
+                "first_name": "Иван",
+                "last_name": "Иванов",
+                "date": today,
+                "date_before": three_days,
+                "days_until": "3",
+                "phone_pay": os.getenv('PHONE_PAY', '7 999 999 99 99'),
+                "name_pay": os.getenv('NAME_PAY', 'Иванов Иван Иванович')
             }
-
-            # Replace variables
-            preview = template
+            
+            # Заменяем переменные в шаблоне
+            preview_message = template_text
             for var, value in sample_data.items():
-                preview = preview.replace(f"{{{var}}}", value)
-
-            response = [
-                "📱 <b>Предпросмотр шаблона</b>\n",
-                "Так будет выглядеть сообщение:\n",
-                "➖➖➖➖➖➖➖➖➖➖",
-                preview,
-                "➖➖➖➖➖➖➖➖➖➖"
+                preview_message = preview_message.replace(f"{{{var}}}", str(value))
+            
+            # Создаем кортежи для предпросмотра в правильном формате
+            previews = [
+                ("today", "Сегодня", preview_message),
+                ("tomorrow", "Завтра", preview_message.replace(today, tomorrow)),
+                ("3days", "Через 3 дня", preview_message.replace(today, three_days))
             ]
-
+            
+            # Формируем сообщение с предпросмотром
+            preview_message = self.preview_template_message(template_text, previews)
+            
+            # Отправляем сообщение с предпросмотром
             self.bot.reply_to(
                 message,
-                "\n".join(response),
+                preview_message,
                 parse_mode='HTML'
             )
-
+            
         except Exception as e:
-            logger.error(f"Error previewing template: {str(e)}")
+            logger.error(f"Ошибка при предпросмотре шаблона: {str(e)}")
             self.bot.reply_to(
                 message,
-                "❌ <b>Произошла ошибка при предпросмотре шаблона.</b>",
+                f"❌ <b>Ошибка при предпросмотре шаблона:</b> {str(e)}",
                 parse_mode='HTML'
             )
 
     def delete_template(self, message: telebot.types.Message):
-        """Delete notification template"""
+        """Обработка команды /delete_template"""
         if not self._check_access(message):
+            return
+            
+        if not self._check_command_params(message, min_params=1):
             return
 
         try:
-            # Expected format: /delete_template template_id
+            # Разбираем команду на части
             parts = message.text.split()
-            if len(parts) != 2:
-                self.bot.reply_to(
-                    message,
-                    "❌ <b>Неверный формат команды.</b>\n"
-                    "Используйте: /delete_template ID",
-                    parse_mode='HTML'
-                )
-                return
-
+            
+            # Получаем ID шаблона
             template_id = int(parts[1])
+            
+            # Удаляем шаблон
             success, msg = self.db.delete_notification_template(template_id)
 
             self.bot.reply_to(message, f"<b>{msg}</b>", parse_mode='HTML')
@@ -1103,12 +1264,13 @@ class BotHandlers:
         """
         if not self._check_access(message):
             return
+            
+        if not self._check_command_params(message, min_params=3):
+            return
 
         try:
             parts = message.text.split()
-            if len(parts) != 4:
-                raise ValueError("Неверное количество параметров")
-
+            
             template_id = int(parts[1])
             days_before = int(parts[2])
             time = parts[3]
@@ -1142,33 +1304,26 @@ class BotHandlers:
             )
 
     def edit_setting(self, message: telebot.types.Message):
-        """Handle /edit_setting command"""
+        """Изменение настройки уведомлений
+        Формат: /edit_setting <setting_id> <days_before> <time>
+        Пример: /edit_setting 1 3 10:00
+        """
         if not self._check_access(message):
+            return
+            
+        if not self._check_command_params(message, min_params=3):
             return
 
         try:
-            # Expected format: /edit_setting <setting_id> <days_before> <time>
             parts = message.text.split()
-            if len(parts) != 4:
-                self.bot.reply_to(
-                    message,
-                    "❌ Неверный формат команды. Используйте:\n"
-                    "/edit_setting <setting_id> <days_before> <time>\n"
-                    "Пример: /edit_setting 1 3 10:00"
-                )
-                return
+            
+            setting_id = int(parts[1])
+            days_before = int(parts[2])
+            time = parts[3]
 
-            _, setting_id, days_before, time = parts
-            setting_id = int(setting_id)
-            days_before = int(days_before)
-
-            # Validate time format (HH:MM)
-            if not re.match(r'^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$', time):
-                self.bot.reply_to(
-                    message,
-                    "❌ Неверный формат времени. Используйте формат HH:MM (например, 10:00)"
-                )
-                return
+            # Проверяем формат времени
+            if not re.match(r'^([01]\d|2[0-3]):([0-5]\d)$', time):
+                raise ValueError("Неверный формат времени. Используйте HH:MM")
 
             # Update notification setting
             success, error_message = self.db.update_notification_setting(
@@ -1210,13 +1365,16 @@ class BotHandlers:
         """
         if not self._check_access(message):
             return
+            
+        if not self._check_command_params(message, min_params=1):
+            return
 
         try:
             parts = message.text.split()
-            if len(parts) != 2:
-                raise ValueError("Неверное количество параметров")
-
+            
             setting_id = int(parts[1])
+            
+            # Удаляем настройку
             success, msg = self.db.delete_notification_setting(setting_id)
 
             if success:
@@ -1263,22 +1421,26 @@ class BotHandlers:
         return response
 
     def set_admin(self, message: telebot.types.Message):
-        """Handle /set_admin command"""
+        """Обработка команды /set_admin"""
         if not self._check_access(message):
+            return
+            
+        if not self._check_command_params(message, min_params=1):
             return
 
         try:
-            _, username = message.text.split()
-            username = username.lstrip('@').lower()  # Convert to lowercase
-
-            logger.info(f"Attempting to set admin rights for username: {username}")
-
-            # Находим пользователя по username (case-insensitive)
+            # Разбираем команду на части
+            parts = message.text.split()
+            
+            # Получаем username
+            username = parts[1].lstrip('@')
+            
+            # Проверяем существование пользователя
             with self.db.get_connection() as conn:
-                user = conn.execute("""
-                    SELECT * FROM users 
-                    WHERE LOWER(username) = LOWER(?)
-                """, (username,)).fetchone()
+                user = conn.execute(
+                    "SELECT * FROM users WHERE username = ?",
+                    (username,)
+                ).fetchone()
 
             if not user:
                 logger.warning(f"User not found for username: {username}")
@@ -1317,22 +1479,26 @@ class BotHandlers:
             self.bot.reply_to(message, "❌ Произошла ошибка при выполнении команды.")
 
     def remove_admin(self, message: telebot.types.Message):
-        """Handle /remove_admin command"""
+        """Обработка команды /remove_admin"""
         if not self._check_access(message):
+            return
+            
+        if not self._check_command_params(message, min_params=1):
             return
 
         try:
-            _, username = message.text.split()
-            username = username.lstrip('@').lower()  # Convert to lowercase
-
-            logger.info(f"Attempting to remove admin rights from username: {username}")
-
-            # Находим пользователя по username (case-insensitive)
+            # Разбираем команду на части
+            parts = message.text.split()
+            
+            # Получаем username
+            username = parts[1].lstrip('@')
+            
+            # Проверяем существование пользователя
             with self.db.get_connection() as conn:
-                user = conn.execute("""
-                    SELECT * FROM users 
-                    WHERE LOWER(username) = LOWER(?)
-                """, (username,)).fetchone()
+                user = conn.execute(
+                    "SELECT * FROM users WHERE username = ?",
+                    (username,)
+                ).fetchone()
 
             if not user:
                 logger.warning(f"User not found for username: {username}")
@@ -1371,16 +1537,21 @@ class BotHandlers:
             self.bot.reply_to(message, "❌ Произошла ошибка при выполнении команды.")
 
     def toggle_notifications(self, message: telebot.types.Message):
-        """Переключение статуса уведомлений для пользователя"""
+        """Обработка команды /toggle_notifications"""
         if not self._check_access(message):
+            return
+            
+        if not self._check_command_params(message, min_params=1):
             return
 
         try:
-            # Ожидаемый формат: /toggle_notifications @username
-            _, username = message.text.split()
-            username = username.lstrip('@')
-
-            # Поиск пользователя в базе данных
+            # Разбираем команду на части
+            parts = message.text.split()
+            
+            # Получаем username
+            username = parts[1].lstrip('@')
+            
+            # Проверяем существование пользователя
             with self.db.get_connection() as conn:
                 user = conn.execute(
                     "SELECT * FROM users WHERE username = ?",
@@ -1454,54 +1625,6 @@ class BotHandlers:
         help_message = get_template_help()
         self.bot.reply_to(message, help_message, parse_mode='HTML')
 
-    def preview_template(self, message: telebot.types.Message):
-        """Handle /preview_template command"""
-        if not self._check_access(message):
-            return
-
-        try:
-            # Format: /preview_template <template_text>
-            cmd_parts = message.text.split(maxsplit=1)
-            if len(cmd_parts) != 2:
-                raise ValueError()
-
-            template = cmd_parts[1]
-
-            # Validate template
-            if not self._validate_template(template):
-                self.bot.reply_to(
-                    message,
-                    "❌ Ошибка: шаблон должен содержать только доступные переменные.\n\n" 
-                    "Доступные переменные: {name}, {first_name}, {last_name}, {date}, {date_before}, {days_until}, {phone_pay}, {name_pay}\n"
-                    "Используйте /help_template для подробной информации."
-                )
-                return
-
-            # Test data for preview
-            test_data = [
-                ("Иван Иванов", "1990-01-15"),
-                ("Мария Петрова","1985-03-20"),
-                ("Админ Тестовый", "1995-07-10")
-            ]
-
-            # Generate preview messages
-            previews = []
-            for name, birth_date in test_data:
-                preview_date = datetime.strptime(birth_date, "%Y-%m-%d")
-                msg = template.replace("{name}", name)
-                msg = msg.replace("{date}", preview_date.strftime("%d.%m.%Y"))
-                previews.append((name, birth_date, msg))
-
-            # Format and send response
-            response = self.preview_template_message(template, previews)
-            self.bot.reply_to(message, response, parse_mode='HTML')
-
-        except ValueError:
-            self.bot.reply_to(
-                message,
-                "Неверный формат команды. Используйте:\n"
-                "/preview_template <текст_шаблона>"
-            )
 
     def get_users_directory(self, message: telebot.types.Message):
         """Handle /users command - display users directory"""
@@ -1525,8 +1648,6 @@ class BotHandlers:
             # Format header
             response = [
                 "📒 Справочник пользователей",
-                "",
-                "Список всех пользователей в системе:"
             ]
 
             # Group users by role (admin/user)
@@ -1578,12 +1699,21 @@ class BotHandlers:
         """Handle /activate_template command"""
         if not self._check_access(message):
             return
+            
+        if not self._check_command_params(message, min_params=1):
+            return
 
         try:
-            _, template_id = message.text.split()
-            template_id = int(template_id)
+            # Разбираем команду на части
+            parts = message.text.split()
+            
+            # Получаем ID шаблона
+            template_id = int(parts[1])
+            
+            # Активируем шаблон
+            success, msg = self.db.update_template_status(template_id, True)
 
-            if self.db.update_template_status(template_id, True):
+            if success:
                 self.bot.reply_to(
                     message,
                     f"✅ Шаблон #{template_id} успешно активирован."
@@ -1607,12 +1737,21 @@ class BotHandlers:
         """Handle /deactivate_template command"""
         if not self._check_access(message):
             return
+            
+        if not self._check_command_params(message, min_params=1):
+            return
 
         try:
-            _, template_id = message.text.split()
-            template_id = int(template_id)
+            # Разбираем команду на части
+            parts = message.text.split()
+            
+            # Получаем ID шаблона
+            template_id = int(parts[1])
+            
+            # Деактивируем шаблон
+            success, msg = self.db.update_template_status(template_id, False)
 
-            if self.db.update_template_status(template_id, False):
+            if success:
                 self.bot.reply_to(
                     message,
                     f"✅ Шаблон #{template_id} успешно деактивирован."
@@ -1633,31 +1772,27 @@ class BotHandlers:
             self.bot.reply_to(message, "❌ Произошла ошибка при деактивации шаблона.")
 
     def test_template(self, message: telebot.types.Message):
-        """Test template with sample data"""
+        """Обработка команды /test_template"""
         if not self._check_access(message):
+            return
+            
+        if not self._check_command_params(message, min_params=2):
             return
 
         try:
-            # Format: /test_template <template_id> <test_name>
+            # Разбираем команду на части
             parts = message.text.split()
-            if len(parts) < 3:
-                self.bot.reply_to(
-                    message,
-                    "❌ <b>Неверный формат команды.</b>\n"
-                    "Используйте: /test_template ID тестовое_имя",
-                    parse_mode='HTML'
-                )
-                return
-
+            
+            # Получаем ID шаблона и username
             template_id = int(parts[1])
-            test_name = ' '.join(parts[2:])
-
-            # Get template from database
+            username = parts[2].lstrip('@')
+            
+            # Проверяем существование шаблона
             with self.db.get_connection() as conn:
-                template = conn.execute("""
-                    SELECT * FROM notification_templates
-                    WHERE id = ?
-                """, (template_id,)).fetchone()
+                template = conn.execute(
+                    "SELECT * FROM notification_templates WHERE id = ?",
+                    (template_id,)
+                ).fetchone()
 
             if not template:
                 self.bot.reply_to(
@@ -1682,9 +1817,9 @@ class BotHandlers:
 
             # Sample data for testing
             sample_data = {
-                'name': test_name,
-                'first_name': test_name.split()[0],
-                'last_name': test_name.split()[1] if len(test_name.split()) > 1 else '',
+                'name': username,
+                'first_name': username.split()[0],
+                'last_name': username.split()[1] if len(username.split()) > 1 else '',
                 'phone_pay': os.getenv('PHONE_PAY', ''),
                 'name_pay': os.getenv('NAME_PAY', '')
             }
@@ -1838,9 +1973,11 @@ class BotHandlers:
         )
         
         # Добавляем кнопки в клавиатуру
-        keyboard.add(add_user_button, users_button)
+        keyboard.add(add_user_button)
         keyboard.add(remove_user_button)
-        keyboard.add(set_admin_button, remove_admin_button)
+        keyboard.add(users_button)
+        keyboard.add(set_admin_button)
+        keyboard.add(remove_admin_button)
         keyboard.add(back_button)
         
         # Отвечаем на callback
@@ -1908,10 +2045,14 @@ class BotHandlers:
         )
         
         # Добавляем кнопки в клавиатуру
-        keyboard.add(get_templates_button, set_template_button)
-        keyboard.add(update_template_button, test_template_button)
-        keyboard.add(preview_template_button, delete_template_button)
-        keyboard.add(activate_template_button, deactivate_template_button)
+        keyboard.add(set_template_button)
+        keyboard.add(delete_template_button)
+        keyboard.add(get_templates_button)
+        keyboard.add(update_template_button)
+        keyboard.add(test_template_button)
+        keyboard.add(preview_template_button)
+        keyboard.add(activate_template_button)
+        keyboard.add(deactivate_template_button)
         keyboard.add(help_template_button)
         keyboard.add(back_button)
         
@@ -1968,9 +2109,12 @@ class BotHandlers:
         )
         
         # Добавляем кнопки в клавиатуру
-        keyboard.add(get_settings_button, toggle_notifications_button)
-        keyboard.add(set_setting_button, edit_setting_button)
-        keyboard.add(delete_setting_button, force_notify_button)
+        keyboard.add(set_setting_button)
+        keyboard.add(delete_setting_button)
+        keyboard.add(toggle_notifications_button)
+        keyboard.add(get_settings_button)
+        keyboard.add(edit_setting_button)
+        keyboard.add(force_notify_button)
         keyboard.add(back_button)
         
         # Отвечаем на callback
@@ -2014,7 +2158,8 @@ class BotHandlers:
         )
         
         # Добавляем кнопки в клавиатуру
-        keyboard.add(backup_button, list_backups_button)
+        keyboard.add(backup_button)
+        keyboard.add(list_backups_button)
         keyboard.add(restore_button)
         keyboard.add(back_button)
         
