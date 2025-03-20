@@ -127,6 +127,11 @@ class BotHandlers:
                 "description": "Удаляет настройку уведомлений",
                 "format": "/delete_setting &lt;setting_id&gt",
                 "example": "/delete_setting 1"
+            },
+            "writemate": {
+                "description": "Открывает AI помощник для написания текстов",
+                "format": "/writemate",
+                "example": "/writemate"
             }
         }
         
@@ -157,11 +162,13 @@ class BotHandlers:
             telebot.types.BotCommand("edit_setting", "Изменить настройку уведомлений"),
             telebot.types.BotCommand("delete_setting", "Удалить настройку уведомлений"),
             telebot.types.BotCommand("help_template", "Помощь по шаблонам"),
+            telebot.types.BotCommand("writemate", "ПишиЛегко"),
             telebot.types.BotCommand("game2048", "Игра 2048")
         ]
         self.user_commands = [
             telebot.types.BotCommand("start", "Запустить бота"),
             telebot.types.BotCommand("birthdays", "Список дней рождения"),
+            telebot.types.BotCommand("writemate", "ПишиЛегко"),
             telebot.types.BotCommand("game2048", "Игра 2048")
         ]
 
@@ -171,7 +178,8 @@ class BotHandlers:
         self.bot.message_handler(commands=['start'])(self.start)
         self.bot.message_handler(commands=['birthdays'])(self.list_birthdays)
         self.bot.message_handler(commands=['game2048'])(self.game2048)
-
+        self.bot.message_handler(commands=['writemate'])(self.writemate)
+        
         # Обработчик подтверждения подписки
         self.bot.message_handler(func=lambda message: message.text.lower() == 'да')(self.handle_subscription_confirmation)
 
@@ -209,7 +217,8 @@ class BotHandlers:
             'cmd_force_notify': self.cmd_force_notify_callback,
             'cmd_backup': self.cmd_backup_callback,
             'cmd_list_backups': self.cmd_list_backups_callback,
-            'cmd_restore': self.cmd_restore_callback
+            'cmd_restore': self.cmd_restore_callback,
+            'cmd_writemate': self.cmd_writemate_callback
         }
         
         for command, handler in command_callbacks.items():
@@ -240,7 +249,8 @@ class BotHandlers:
             'edit_setting': self.edit_setting,
             'delete_setting': self.delete_setting,
             'help_template': self.help_template,
-            'game2048': self.game2048
+            'game2048': self.game2048,
+            'writemate': self.writemate
         }
 
         for command, handler in admin_commands.items():
@@ -447,6 +457,10 @@ class BotHandlers:
                 text="🎮 Игра 2048",
                 url="https://t.me/PlayToTime_bot/Game2048"
             )
+            writemate_button = telebot.types.InlineKeyboardButton(
+                text="✍️ ПишиЛегко",
+                url="https://t.me/PlayToTime_bot/WriteMate"
+            )
             
             # Группы команд для администратора
             users_button = telebot.types.InlineKeyboardButton(
@@ -467,7 +481,8 @@ class BotHandlers:
             )
             
             # Добавляем кнопки в клавиатуру
-            keyboard.add(birthdays_button, game_button)
+            keyboard.add(birthdays_button)
+            keyboard.add(game_button, writemate_button)
             keyboard.add(users_button, templates_button)
             keyboard.add(notifications_button, backup_button)
         else:
@@ -1916,6 +1931,30 @@ class BotHandlers:
             reply_markup=keyboard
         )
 
+    def writemate(self, message: telebot.types.Message):
+        """Обработка команды /writemate - открывает AI помощник для написания текстов"""
+        # URL к сервису
+        url = "https://t.me/PlayToTime_bot/WriteMate"
+        
+        # Создаем клавиатуру с кнопкой для перехода
+        keyboard = telebot.types.InlineKeyboardMarkup()
+        keyboard.add(telebot.types.InlineKeyboardButton(
+            text="✍️ ПишиЛегко",
+            url=url
+        ))
+        
+        # Отправляем сообщение с описанием и кнопкой
+        self.bot.reply_to(
+            message,
+            "📝 <b>ПишиЛегко</b> - твой AI помощник для создания и улучшения текстовых сообщений.\n\n"
+            "• Создавай новые тексты\n"
+            "• Улучшай существующие сообщения\n"
+            "• Выбирай подходящий тон и формат\n\n"
+            "Нажми на кнопку ниже для перехода:",
+            parse_mode='HTML',
+            reply_markup=keyboard
+        )
+
     def birthdays_callback(self, call: telebot.types.CallbackQuery):
         """Обработчик callback-запроса для кнопки 'Дни рождения'"""
         # Создаем фиктивное сообщение для передачи в метод list_birthdays
@@ -1979,6 +2018,12 @@ class BotHandlers:
         keyboard.add(set_admin_button)
         keyboard.add(remove_admin_button)
         keyboard.add(back_button)
+        
+        # Добавить кнопку для WriteMate
+        keyboard.add(telebot.types.InlineKeyboardButton(
+            text="✍️ ПишиЛегко",
+            callback_data="cmd_writemate"
+        ))
         
         # Отвечаем на callback
         self.bot.answer_callback_query(call.id)
@@ -2287,6 +2332,10 @@ class BotHandlers:
     def cmd_restore_callback(self, call: telebot.types.CallbackQuery):
         """Обработчик callback-запроса для команды 'Восстановить из копии'"""
         self._execute_command_from_callback(call, 'restore_backup')
+        
+    def cmd_writemate_callback(self, call: telebot.types.CallbackQuery):
+        """Обработчик callback-запроса для отправки ссылки WriteMate"""
+        self._execute_command_from_callback(call, 'writemate')
         
     def _execute_command_from_callback(self, call: telebot.types.CallbackQuery, command: str):
         """Вспомогательный метод для выполнения команды из callback-запроса"""
