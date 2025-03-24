@@ -2,6 +2,10 @@ import logging
 from config import PHONE_PAY, NAME_PAY
 import re
 from typing import List, Dict, Tuple
+from bot.constants import (
+    MONTHS_RU, ALLOWED_HTML_TAGS, TEMPLATE_VARIABLES, 
+    SAMPLE_TEMPLATE_DATA, TEMPLATE_HELP_TEXT, EMOJI
+)
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.ERROR) # Настройка логирования для вывода ошибок
@@ -21,16 +25,9 @@ def format_birthday_reminder(template: str, first_name: str, last_name: str,
         current_year = datetime.now().year
         birthday_this_year = birth_date_obj.replace(year=current_year)
 
-        # Русские названия месяцев в родительном падеже
-        MONTHS_RU = {
-            1: "января", 2: "февраля", 3: "марта", 4: "апреля",
-            5: "мая", 6: "июня", 7: "июля", 8: "августа",
-            9: "сентября", 10: "октября", 11: "ноября", 12: "декабря"
-        }
-
         # Форматируем даты с русскими названиями месяцев
-        date = f"{birthday_this_year.day:02d} {MONTHS_RU[birthday_this_year.month]}"
-        date_before = f"{(birthday_this_year - timedelta(days=1)).day:02d} {MONTHS_RU[(birthday_this_year - timedelta(days=1)).month]}"
+        date = f"{birthday_this_year.day:02d} {MONTHS_RU[birthday_this_year.month]['gen']}"
+        date_before = f"{(birthday_this_year - timedelta(days=1)).day:02d} {MONTHS_RU[(birthday_this_year - timedelta(days=1)).month]['gen']}"
 
         # Создаем словарь всех доступных переменных
         template_vars = {
@@ -92,22 +89,6 @@ def get_birthday_list_message(birthdays: list) -> str:
     if not birthdays:
         return "В базе данных нет дней рождения."
 
-    # Русские названия месяцев в именительном и родительном падежах
-    MONTHS_RU = {
-        1: {"nom": "Январь", "gen": "января"},
-        2: {"nom": "Февраль", "gen": "февраля"},
-        3: {"nom": "Март", "gen": "марта"},
-        4: {"nom": "Апрель", "gen": "апреля"},
-        5: {"nom": "Май", "gen": "мая"},
-        6: {"nom": "Июнь", "gen": "июня"},
-        7: {"nom": "Июль", "gen": "июля"},
-        8: {"nom": "Август", "gen": "августа"},
-        9: {"nom": "Сентябрь", "gen": "сентября"},
-        10: {"nom": "Октябрь", "gen": "октября"},
-        11: {"nom": "Ноябрь", "gen": "ноября"},
-        12: {"nom": "Декабрь", "gen": "декабря"}
-    }
-
     message = "📅 Список дней рождения на текущий год:\n\n"
     current_month = None
 
@@ -161,29 +142,19 @@ def get_new_user_request_notification(user_info: dict) -> str:
 
 def validate_template_html(template: str) -> bool:
     """Проверка HTML-тегов шаблона"""
-    allowed_tags = [
-        'b', 'strong', 'i', 'em', 'u', 'ins', 's', 'strike', 'del',
-        'span', 'tg-spoiler', 'a', 'code', 'pre', 'blockquote',
-        'tg-emoji'
-    ]
     tag_pattern = re.compile(r'</?([a-z-]+)(?:\s+[^>]*)?>')
 
     # Находим все HTML-теги в шаблоне
     tags = tag_pattern.findall(template)
 
     # Проверяем, что все теги разрешены
-    return all(tag.lower() in allowed_tags for tag in tags)
+    return all(tag.lower() in ALLOWED_HTML_TAGS for tag in tags)
 
 def validate_template_variables(template: str) -> Tuple[bool, List[str]]:
     """
     Проверка переменных в шаблоне.
     Возвращает кортеж (is_valid, invalid_vars).
     """
-    allowed_vars = [
-        "{name}", "{first_name}", "{last_name}", "{date}",
-        "{date_before}", "{days_until}", "{phone_pay}", "{name_pay}"
-    ]
-
     # Находим все переменные в шаблоне {variable}
     var_pattern = re.compile(r'\{([^}]+)\}')
     found_vars = var_pattern.findall(template)
@@ -191,7 +162,8 @@ def validate_template_variables(template: str) -> Tuple[bool, List[str]]:
     # Проверяем каждую найденную переменную
     invalid_vars = []
     for var in found_vars:
-        if "{" + var + "}" not in allowed_vars:
+        var_with_braces = "{" + var + "}"
+        if var_with_braces not in TEMPLATE_VARIABLES:
             invalid_vars.append(var)
 
     return (len(invalid_vars) == 0, invalid_vars)
@@ -199,47 +171,7 @@ def validate_template_variables(template: str) -> Tuple[bool, List[str]]:
 
 def get_template_help() -> str:
     """Получение справки по форматированию шаблонов"""
-    return """<b>📝 Форматирование шаблонов уведомлений</b>
-    
-<b>Доступные переменные:</b>
-• {name} - Полное имя пользователя (Имя + Фамилия)
-• {first_name} - Имя пользователя
-• {last_name} - Фамилия пользователя
-• {date} - Дата события в формате "ДД месяца"
-• {date_before} - Дата за день до события
-• {days_until} - Количество дней до события
-• {phone_pay} - Номер телефона получателя перевода по СБП (для изменения значения переменной обращайся к @spiderdad)
-• {name_pay} - Полное имя получателя перевода по СПБ (для изменения значения переменной обращайся к @spiderdad)
-    
-<b>HTML-теги для форматирования:</b>
-• &lt;b&gt;текст&lt;/b&gt; или &lt;strong&gt;текст&lt;/strong&gt; - <b>Жирный текст</b>
-• &lt;i&gt;текст&lt;/i&gt; или &lt;em&gt;текст&lt;/em&gt; - <i>Курсив</i>
-• &lt;u&gt;текст&lt;/u&gt; или &lt;ins&gt;текст&lt;/ins&gt; - <u>Подчёркнутый текст</u>
-• &lt;s&gt;текст&lt;/s&gt; или &lt;strike&gt;текст&lt;/strike&gt; - <s>Зачёркнутый текст</s>
-• &lt;code&gt;текст&lt;/code&gt; - <code>Моноширинный шрифт</code>
-• &lt;pre&gt;текст&lt;/pre&gt; - Предварительно отформатированный текст
-• &lt;tg-spoiler&gt;текст&lt;/tg-spoiler&gt; - Спойлер
-• &lt;blockquote&gt;текст&lt;/blockquote&gt; - Цитата
-    
-<b>Примеры шаблонов:</b>
-1. Современный стиль с эмодзи:
-<pre>Коллега, привет! 🎉\n
-📅 <b>{name}</b> <b>{date}</b> празднует День Рождения! 🎂\n
-Если хочешь принять участие в поздравительном конверте, прошу перевести взнос по номеру телефона <code>{phone_pay}</code> на <b>Альфу</b> или <b>Тинькофф</b> до конца дня <b>{date_before}</b>. Получатель: <i>{name_pay}</i>.\n
-⚠️ Пожалуйста, <b>не переводи деньги в другие банки</b>, даже если приложение будет предлагать варианты.\n
-В комментарии перевода укажи: <code>ДР {first_name}</code>.\n
-Спасибо! 🙌</pre>
-    
-2. Простой стиль:
-<pre>🎂 <b>{date}</b> день рождения у <b>{name}</b>!</pre>
-    
-3. С запросом на перевод:
-<pre>💳 Сбор на подарок\n
-Номер: <code>{phone_pay}</code>\n
-Получатель: <i>{name_pay}</i>\n
-Комментарий: <code>ДР {first_name}</code></pre>
-    
-<i>Используйте HTML-теги и эмодзи для красивого форматирования ваших уведомлений!</i>"""
+    return TEMPLATE_HELP_TEXT
 
 def preview_template_message(template: str, previews: List[tuple]) -> str:
     """Форматирование сообщения предварительного просмотра с индикаторами emoji"""
@@ -247,17 +179,11 @@ def preview_template_message(template: str, previews: List[tuple]) -> str:
     response += "📋 <i>Исходный шаблон:</i>\n"
     response += f"<code>{template}</code>\n\n"
     response += "🔍 <b>Примеры сообщений:</b>\n\n"
+    
+    # Используем эмодзи из констант
+    for i, (preview_type, message) in enumerate(previews):
+        emoji = EMOJI.get(preview_type, EMOJI["general"])
+        response += f"{emoji} <b>{preview_type.capitalize()}:</b>\n"
+        response += f"{message}\n\n"
 
-    emojis = {
-        "today": "📅",
-        "tomorrow": "⏰",
-        "3days": "📆",
-        "week": "📊"
-    }
-
-    for preview_type, label, message in previews:
-        emoji = emojis.get(preview_type, "🔔")
-        response += f"{emoji} <u>{label}:</u>\n{message}\n\n"
-
-    response += "💡 <i>Если шаблон выглядит правильно, используйте /set_template для его сохранения.</i>"
     return response

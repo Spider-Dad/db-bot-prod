@@ -7,7 +7,6 @@ import pytz
 
 from .database import Database
 from .message_templates import format_birthday_reminder
-from config import DEFAULT_NOTIFICATION_SETTINGS
 
 logger = logging.getLogger(__name__)
 

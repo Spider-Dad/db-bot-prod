@@ -11,24 +11,13 @@ from .database import Database
 from .notification_manager import NotificationManager
 from .message_templates import get_welcome_message, format_birthday_reminder, get_new_user_notification, get_template_help, get_new_user_request_notification
 from config import ADMIN_IDS
+from bot.constants import (
+    MONTHS_RU, ALLOWED_HTML_TAGS, TEMPLATE_VARIABLES, 
+    SAMPLE_TEMPLATE_DATA, TEMPLATE_HELP_TEXT, EMOJI,
+    ERROR_MESSAGES
+)
 
 logger = logging.getLogger(__name__)
-
-# Русские названия месяцев с правильными падежами
-MONTHS_RU = {
-    1: {'nom': 'Январь', 'gen': 'января'},
-    2: {'nom': 'Февраль', 'gen': 'февраля'},
-    3: {'nom': 'Март', 'gen': 'марта'},
-    4: {'nom': 'Апрель', 'gen': 'апреля'},
-    5: {'nom': 'Май', 'gen': 'мая'},
-    6: {'nom': 'Июнь', 'gen': 'июня'},
-    7: {'nom': 'Июль', 'gen': 'июля'},
-    8: {'nom': 'Август', 'gen': 'августа'},
-    9: {'nom': 'Сентябрь', 'gen': 'сентября'},
-    10: {'nom': 'Октябрь', 'gen': 'октября'},
-    11: {'nom': 'Ноябрь', 'gen': 'ноября'},
-    12: {'nom': 'Декабрь', 'gen': 'декабря'}
-}
 
 class BotHandlers:
     def __init__(self, bot: telebot.TeleBot, db: Database, notification_manager: NotificationManager):
@@ -994,37 +983,14 @@ class BotHandlers:
         """
         # Check HTML tags
         if not validate_template_html(template):
-            return False, (
-                "❌ <b>Обнаружены недопустимые HTML-теги.</b>\n"
-                "Разрешены теги:\n"
-                "• &lt;b&gt; для жирного текста\n"
-                "• &lt;i&gt; для курсива\n"
-                "• &lt;code&gt; для моноширинного шрифта\n\n"
-                "Используйте /help_template для справки."
-            )
-
-        # Check template variables
-        allowed_vars = ["{name}", "{first_name}", "{last_name}", "{date}", 
-                       "{date_before}", "{days_until}", "{phone_pay}", "{name_pay}"]
+            return False, ERROR_MESSAGES["invalid_html"]
 
         # Find all variables in template using regex
         found_vars = re.findall(r'{[^}]+}', template)
-        invalid_vars = [var for var in found_vars if var not in allowed_vars]
+        invalid_vars = [var for var in found_vars if var not in TEMPLATE_VARIABLES]
 
         if invalid_vars:
-            return False, (                "❌ <b>Обнаружены недопустимые переменные:</b>\n"
-                f"{', '.join(invalid_vars)}\n\n"
-                "<b>Разрешены переменные:</b>\n"
-                "• {name} - полное имя\n"
-                "• {first_name} - имя\n"
-                "• {last_name} - фамилия\n"
-                "• {date} - дата события\n"
-                "• {date_before} - дата напоминания\n"
-                "• {days_until} - дней до события\n"
-                "• {phone_pay} - телефон плательщика\n"
-                "• {name_pay} - имя плательщика\n\n"
-                "Используйте /help_template для справки."
-            )
+            return False, ERROR_MESSAGES["invalid_variables"].format(invalid_vars=', '.join(invalid_vars))
 
         return True, ""
 
@@ -1170,34 +1136,31 @@ class BotHandlers:
             template_text = template['template']
             
             # Создаем примеры для предпросмотра в нужном формате
-            # (тип_предпросмотра, метка, сообщение)
             now = datetime.now()
             today = now.strftime("%d.%m.%Y")
             tomorrow = (now + timedelta(days=1)).strftime("%d.%m.%Y")
             three_days = (now + timedelta(days=3)).strftime("%d.%m.%Y")
             
-            # Подготовим данные для шаблонов
-            sample_data = {
-                "name": "Иван Иванов",
-                "first_name": "Иван",
-                "last_name": "Иванов",
+            # Используем тестовые данные из констант
+            sample_data = SAMPLE_TEMPLATE_DATA.copy()
+            sample_data.update({
                 "date": today,
                 "date_before": three_days,
                 "days_until": "3",
-                "phone_pay": os.getenv('PHONE_PAY', '7 999 999 99 99'),
-                "name_pay": os.getenv('NAME_PAY', 'Иванов Иван Иванович')
-            }
+                "phone_pay": os.getenv('PHONE_PAY', SAMPLE_TEMPLATE_DATA["phone_pay"]),
+                "name_pay": os.getenv('NAME_PAY', SAMPLE_TEMPLATE_DATA["name_pay"])
+            })
             
             # Заменяем переменные в шаблоне
             preview_message = template_text
             for var, value in sample_data.items():
                 preview_message = preview_message.replace(f"{{{var}}}", str(value))
             
-            # Создаем кортежи для предпросмотра в правильном формате
+            # Создаем кортежи для предпросмотра
             previews = [
-                ("today", "Сегодня", preview_message),
-                ("tomorrow", "Завтра", preview_message.replace(today, tomorrow)),
-                ("3days", "Через 3 дня", preview_message.replace(today, three_days))
+                ("today", preview_message),
+                ("tomorrow", preview_message.replace(today, tomorrow)),
+                ("3days", preview_message.replace(today, three_days))
             ]
             
             # Формируем сообщение с предпросмотром
@@ -1421,16 +1384,11 @@ class BotHandlers:
         response += f"<code>{template}</code>\n\n"
         response += "🔍 <b>Примеры сообщений:</b>\n\n"
 
-        emojis = {
-            "today": "📅",
-            "tomorrow": "⏰",
-            "3days": "📆",
-            "week": "📊"
-        }
-
-        for preview_type, label, message in previews:
-            emoji = emojis.get(preview_type, "🔔")
-            response += f"{emoji} <u>{label}:</u>\n{message}\n\n"
+        # Используем эмодзи из констант
+        for preview_type, message in previews:
+            emoji = EMOJI.get(preview_type, EMOJI["general"])
+            response += f"{emoji} <b>{preview_type.capitalize()}:</b>\n"
+            response += f"{message}\n\n"
 
         response += "💡 <i>Если шаблон выглядит правильно, используйте /set_template для его сохранения.</i>"
         return response
@@ -1830,13 +1788,13 @@ class BotHandlers:
                 datetime.now() + timedelta(days=7)
             ]
 
-            # Sample data for testing
+            # Sample data for testing (с пользовательским именем)
             sample_data = {
                 'name': username,
                 'first_name': username.split()[0],
                 'last_name': username.split()[1] if len(username.split()) > 1 else '',
-                'phone_pay': os.getenv('PHONE_PAY', ''),
-                'name_pay': os.getenv('NAME_PAY', '')
+                'phone_pay': os.getenv('PHONE_PAY', SAMPLE_TEMPLATE_DATA["phone_pay"]),
+                'name_pay': os.getenv('NAME_PAY', SAMPLE_TEMPLATE_DATA["name_pay"])
             }
 
             response = [
@@ -1883,7 +1841,7 @@ class BotHandlers:
         except ValueError:
             self.bot.reply_to(
                 message,
-                "❌ **Неверный ID шаблона.</b>\n"
+                "❌ <b>Неверный ID шаблона.</b>\n"
                 "ID должен быть числом.",
                 parse_mode='HTML'
             )
@@ -2019,11 +1977,11 @@ class BotHandlers:
         keyboard.add(remove_admin_button)
         keyboard.add(back_button)
         
-        # Добавить кнопку для WriteMate
-        keyboard.add(telebot.types.InlineKeyboardButton(
-            text="✍️ ПишиЛегко",
-            callback_data="cmd_writemate"
-        ))
+        # # Добавить кнопку для WriteMate
+        # keyboard.add(telebot.types.InlineKeyboardButton(
+        #     text="✍️ ПишиЛегко",
+        #     callback_data="cmd_writemate"
+        # ))
         
         # Отвечаем на callback
         self.bot.answer_callback_query(call.id)
@@ -2374,8 +2332,7 @@ class BotHandlers:
 
 def validate_template_html(html_text):
     #простая проверка на наличие недопустимых тегов, можно расширить
-    allowed_tags = ["b", "i", "u", "i", "s", "code", "pre", "tg-spoiler", "blockquote", "a"]
-    for tag in re.findall(r'<\/?([a-z]+)', html_text):
-        if tag not in allowed_tags:
+    for tag in re.findall(r'<\/?([a-z-]+)', html_text):
+        if tag not in ALLOWED_HTML_TAGS:
             return False
     return True
