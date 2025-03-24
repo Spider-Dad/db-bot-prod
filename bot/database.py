@@ -7,7 +7,8 @@ from typing import List, Dict, Optional, Tuple
 from contextlib import contextmanager
 import pytz
 import json
-from config import DB_PATH, SCHEMA_PATH, DEFAULT_NOTIFICATION_SETTINGS
+from config import DB_PATH, SCHEMA_PATH
+from bot.constants import DEFAULT_NOTIFICATION_SETTINGS, DEFAULT_NOTIFICATION_TEMPLATES
 
 logger = logging.getLogger(__name__)
 
@@ -115,38 +116,41 @@ class Database:
                 )
             """)
 
-                # Добавляем базовый шаблон уведомления
-                template_id = None
+                # Добавляем шаблоны уведомлений по умолчанию
+                template_ids = {}
+                for template_data in DEFAULT_NOTIFICATION_TEMPLATES:
+                    # Проверяем существование шаблона
+                    existing_template = conn.execute("""
+                        SELECT id FROM notification_templates 
+                        WHERE name = ? AND category = ?
+                    """, (template_data['name'], template_data['category'])).fetchone()
 
-                # Проверяем существование базового шаблона
-                existing_template = conn.execute("""
-                    SELECT id FROM notification_templates 
-                    WHERE name = 'birthday_soon' AND category = 'birthday'
-                """).fetchone()
+                    if existing_template:
+                        template_ids[template_data['name']] = existing_template['id']
+                    else:
+                        cursor = conn.execute("""
+                            INSERT INTO notification_templates (name, template, category)
+                            VALUES (?, ?, ?)
+                        """, (template_data['name'], template_data['template'], template_data['category']))
+                        template_ids[template_data['name']] = cursor.lastrowid
 
-                if existing_template:
-                    template_id = existing_template[0]
-                else:
-                    cursor = conn.execute("""
-                        INSERT INTO notification_templates (name, template, category)
-                        VALUES (?, ?, ?)
-                    """, ('birthday_soon', '🎂 {date} день рождения у {name}!', 'birthday'))
-                    template_id = cursor.lastrowid
+                # Добавляем настройки уведомлений
+                for setting in DEFAULT_NOTIFICATION_SETTINGS:
+                    template_id = template_ids.get(setting['template_name'])
+                    if not template_id:
+                        continue
+                    
+                    # Проверяем существование настройки
+                    exists = conn.execute("""
+                        SELECT COUNT(*) FROM notification_settings 
+                        WHERE template_id = ? AND days_before = ? AND time = ?
+                    """, (template_id, setting['days_before'], setting['time'])).fetchone()[0]
 
-                # Добавляем настройки уведомлений если шаблон был создан
-                if template_id:
-                    for setting in DEFAULT_NOTIFICATION_SETTINGS:
-                        # Проверяем существование настройки
-                        exists = conn.execute("""
-                            SELECT COUNT(*) FROM notification_settings 
-                            WHERE template_id = ? AND days_before = ? AND time = ?
-                        """, (template_id, setting['days_before'], setting['time'])).fetchone()[0]
-
-                        if not exists:
-                            conn.execute("""
-                                INSERT INTO notification_settings (template_id, days_before, time)
-                                VALUES (?, ?, ?)
-                            """, (template_id, setting['days_before'], setting['time']))
+                    if not exists:
+                        conn.execute("""
+                            INSERT INTO notification_settings (template_id, days_before, time)
+                            VALUES (?, ?, ?)
+                        """, (template_id, setting['days_before'], setting['time']))
 
                 logger.info("Настройки по умолчанию успешно добавлены")
 
