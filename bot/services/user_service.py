@@ -7,6 +7,7 @@
 
 import logging
 from typing import List, Dict, Optional, Any
+from datetime import date, datetime, timedelta
 
 from bot.core.base_service import BaseService
 from bot.core.models import User
@@ -33,18 +34,6 @@ class UserService(BaseService):
         super().__init__()
         self.user_repository = user_repository
     
-    def get_user_by_id(self, user_id: int) -> Optional[User]:
-        """
-        Получение пользователя по ID.
-        
-        Args:
-            user_id: ID пользователя
-            
-        Returns:
-            Пользователь или None, если пользователь не найден
-        """
-        return self.user_repository.get_by_id(user_id)
-    
     def get_user_by_telegram_id(self, telegram_id: int) -> Optional[User]:
         """
         Получение пользователя по Telegram ID.
@@ -55,19 +44,7 @@ class UserService(BaseService):
         Returns:
             Пользователь или None, если пользователь не найден
         """
-        return self.user_repository.get_by_telegram_id(telegram_id)
-    
-    def get_user_by_username(self, username: str) -> Optional[User]:
-        """
-        Получение пользователя по имени пользователя.
-        
-        Args:
-            username: Имя пользователя
-            
-        Returns:
-            Пользователь или None, если пользователь не найден
-        """
-        return self.user_repository.get_by_username(username)
+        return self.user_repository.get_user_by_telegram_id(telegram_id)
     
     def get_all_users(self) -> List[User]:
         """
@@ -76,25 +53,7 @@ class UserService(BaseService):
         Returns:
             Список всех пользователей
         """
-        return self.user_repository.get_all()
-    
-    def get_admin_users(self) -> List[User]:
-        """
-        Получение всех администраторов.
-        
-        Returns:
-            Список всех администраторов
-        """
-        return self.user_repository.get_admins()
-    
-    def get_admin_user_ids(self) -> List[int]:
-        """
-        Получение Telegram ID всех администраторов.
-        
-        Returns:
-            Список Telegram ID всех администраторов
-        """
-        return self.user_repository.get_admin_ids()
+        return self.user_repository.get_all_users()
     
     def create_user(self, user: User) -> int:
         """
@@ -104,72 +63,120 @@ class UserService(BaseService):
             user: Пользователь для создания
             
         Returns:
-            ID созданного пользователя
+            ID созданного пользователя или None в случае ошибки
         """
-        return self.user_repository.create(user)
+        return self.user_repository.add_user(user)
     
-    def update_user(self, user_id: int, user: User) -> bool:
+    def update_user(self, user: User) -> bool:
         """
         Обновление пользователя.
         
         Args:
-            user_id: ID пользователя
             user: Обновленный пользователь
             
         Returns:
             True, если обновление прошло успешно, иначе False
         """
-        return self.user_repository.update(user_id, user)
+        return self.user_repository.update_user(user)
     
-    def delete_user(self, user_id: int) -> bool:
+    def delete_user(self, telegram_id: int) -> bool:
         """
         Удаление пользователя.
         
         Args:
-            user_id: ID пользователя
+            telegram_id: Telegram ID пользователя
             
         Returns:
             True, если удаление прошло успешно, иначе False
         """
-        return self.user_repository.delete(user_id)
+        return self.user_repository.delete_user(telegram_id)
     
-    def set_admin_status(self, user_id: int, is_admin: bool) -> bool:
+    def set_admin_status(self, telegram_id: int, is_admin: bool) -> bool:
         """
         Изменение статуса администратора.
         
         Args:
-            user_id: ID пользователя
+            telegram_id: Telegram ID пользователя
             is_admin: True - назначить администратором, False - отозвать права администратора
             
         Returns:
             True, если изменение прошло успешно, иначе False
         """
-        return self.user_repository.toggle_admin(user_id, is_admin)
+        if is_admin:
+            return self.user_repository.promote_to_admin(telegram_id)
+        else:
+            return self.user_repository.demote_from_admin(telegram_id)
     
-    def toggle_notifications(self, user_id: int, is_enabled: bool) -> bool:
+    def toggle_notifications(self, telegram_id: int, is_enabled: bool) -> bool:
         """
         Включение/отключение уведомлений.
         
         Args:
-            user_id: ID пользователя
+            telegram_id: Telegram ID пользователя
             is_enabled: True - включить уведомления, False - отключить уведомления
             
         Returns:
             True, если изменение прошло успешно, иначе False
         """
-        return self.user_repository.toggle_notifications(user_id, is_enabled)
+        return self.user_repository.update_user_notifications(telegram_id, is_enabled)
     
-    def get_users_with_birthdays(self, days_before: int) -> List[User]:
+    def toggle_subscription(self, telegram_id: int, is_subscribed: bool) -> bool:
         """
-        Получение пользователей, у которых скоро день рождения.
+        Изменение статуса подписки.
         
         Args:
-            days_before: Количество дней до дня рождения
+            telegram_id: Telegram ID пользователя
+            is_subscribed: True - подписать пользователя, False - отписать пользователя
             
         Returns:
-            Список пользователей, у которых скоро день рождения
+            True, если изменение прошло успешно, иначе False
         """
-        return self.user_repository.get_users_with_birthdays(days_before)
+        return self.user_repository.update_user_subscription(telegram_id, is_subscribed)
+    
+    def get_upcoming_birthdays(self, days_ahead: int = 7) -> List[Dict[str, Any]]:
+        """
+        Получение ближайших дней рождения.
+        
+        Args:
+            days_ahead: Количество дней вперед для поиска
+            
+        Returns:
+            Список словарей с информацией о пользователях и их днях рождения
+        """
+        return self.user_repository.get_upcoming_birthdays(days_ahead)
+    
+    def get_users_with_birthdays_between(self, start_date: date, end_date: date) -> List[User]:
+        """
+        Получение пользователей, у которых день рождения в указанном диапазоне дат.
+        
+        Args:
+            start_date: Начальная дата диапазона
+            end_date: Конечная дата диапазона
+            
+        Returns:
+            Список пользователей с днями рождения в указанном диапазоне
+        """
+        return self.user_repository.get_users_with_birthdays_between(start_date, end_date)
+    
+    def get_users_with_birthdays_today(self) -> List[User]:
+        """
+        Получение пользователей, у которых сегодня день рождения.
+        
+        Returns:
+            Список пользователей с днем рождения сегодня
+        """
+        today = datetime.now().date()
+        return self.user_repository.get_users_with_birthdays_between(today, today)
+    
+    def get_admin_telegram_ids(self) -> List[int]:
+        """
+        Получение Telegram ID всех администраторов.
+        
+        Returns:
+            Список Telegram ID всех администраторов
+        """
+        admin_users = [user for user in self.get_all_users() if user.is_admin]
+        return [user.telegram_id for user in admin_users]
     
     def execute(self, *args, **kwargs) -> Any:
         """
