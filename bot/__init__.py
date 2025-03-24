@@ -1,5 +1,15 @@
-from .database import Database
-from .notification_manager import NotificationManager
-from .handlers import BotHandlers
+"""
+Пакет бота для Telegram.
 
-__all__ = ['Database', 'NotificationManager', 'BotHandlers']
+Этот пакет содержит все компоненты бота:
+- Репозитории для работы с базой данных
+- Сервисы для реализации бизнес-логики
+- Обработчики команд для взаимодействия с пользователем
+"""
+
+# Модули больше не экспортируются напрямую, они доступны через подпакеты:
+# - bot.repositories
+# - bot.services
+# - bot.handlers
+
+__all__ = []

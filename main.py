@@ -3,10 +3,31 @@ import sys
 import telebot
 import os
 import platform
-from bot import Database, NotificationManager, BotHandlers
+from bot.repositories import (
+    DatabaseManager,
+    UserRepository,
+    TemplateRepository,
+    NotificationSettingRepository,
+    NotificationLogRepository
+)
+from bot.services import (
+    UserService,
+    TemplateService,
+    NotificationSettingService,
+    NotificationLogService,
+    BackupService,
+    NotificationService
+)
+from bot.handlers import (
+    UserHandler,
+    TemplateHandler,
+    NotificationSettingHandler,
+    NotificationLogHandler,
+    BackupHandler
+)
 from config import BOT_TOKEN, DATA_DIR
 
-# Configure logging
+# Настройка логирования
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO,
@@ -42,33 +63,65 @@ def obtain_lock():
             sys.exit(1)
 
 def main():
-    """Main function to start the bot"""
+    """Главная функция для запуска бота"""
     try:
         # Получаем блокировку для предотвращения запуска нескольких экземпляров
         lock_fd = obtain_lock()
 
-        # Initialize components
-        logger.info("Инициализация базы данных...")
-        db = Database()
-
+        # Инициализация компонентов
+        logger.info("Инициализация менеджера базы данных...")
+        db_manager = DatabaseManager()
+        
+        # Инициализация репозиториев
+        logger.info("Инициализация репозиториев...")
+        user_repo = UserRepository(db_manager)
+        template_repo = TemplateRepository(db_manager)
+        setting_repo = NotificationSettingRepository(db_manager)
+        log_repo = NotificationLogRepository(db_manager)
+        
+        # Инициализация сервисов
+        logger.info("Инициализация сервисов...")
+        user_service = UserService(user_repo)
+        template_service = TemplateService(template_repo)
+        setting_service = NotificationSettingService(setting_repo, template_repo)
+        log_service = NotificationLogService(log_repo, user_repo, template_repo)
+        backup_service = BackupService(db_manager)
+        
+        # Создание бота
         logger.info("Создание бота...")
         bot = telebot.TeleBot(BOT_TOKEN)
-
-        logger.info("Настройка менеджера уведомлений...")
-        notification_manager = NotificationManager(bot, db)
-
+        
+        # Создание и настройка обработчиков
         logger.info("Конфигурация обработчиков...")
-        handlers = BotHandlers(bot, db, notification_manager)
-        handlers.register_handlers()
-
-        # Start notification manager
+        handlers = [
+            UserHandler(bot, user_service),
+            TemplateHandler(bot, template_service, user_service),
+            NotificationSettingHandler(bot, setting_service, template_service),
+            NotificationLogHandler(bot, log_service),
+            BackupHandler(bot, backup_service)
+        ]
+        
+        # Регистрация обработчиков
+        for handler in handlers:
+            handler.register_handlers()
+        
+        # Настройка менеджера уведомлений
+        logger.info("Настройка менеджера уведомлений...")
+        notification_service = NotificationService(
+            bot, 
+            user_service, 
+            template_service, 
+            setting_service, 
+            log_service
+        )
+        
+        # Запуск менеджера уведомлений
         logger.info("Запуск менеджера уведомлений...")
-        notification_manager.start()
-
-        # Start bot and setup command menu
+        notification_service.start()
+        
+        # Запуск бота
         logger.info("Запуск бота...")
-        logger.info("Настройка меню команд...")
-        handlers.setup_command_menu()  # Setup command menu after bot is initialized
+        logger.info("Бот успешно запущен!")
         bot.infinity_polling()
 
     except SingleInstanceException as e:

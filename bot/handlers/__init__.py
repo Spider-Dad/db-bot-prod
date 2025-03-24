@@ -1,21 +1,21 @@
 """
-Пакет handlers содержит обработчики команд и сообщений Telegram-бота.
+Обработчики команд для бота.
 
-Обработчики отвечают за взаимодействие с пользователями через Telegram API,
-используя сервисы для выполнения бизнес-логики.
+Этот пакет содержит классы обработчиков для различных команд бота.
 """
 
 from .base_handler import BaseHandler
-from .common_handlers import CommonHandler
-from .decorators import admin_required, registered_only, log_errors, command_args
-
-# Другие обработчики будут добавлены по мере разработки
+from .user_handler import UserHandler
+from .template_handler import TemplateHandler
+from .notification_setting_handler import NotificationSettingHandler
+from .notification_log_handler import NotificationLogHandler
+from .backup_handler import BackupHandler
 
 __all__ = [
     'BaseHandler',
-    'CommonHandler',
-    'admin_required',
-    'registered_only',
-    'log_errors',
-    'command_args',
+    'UserHandler',
+    'TemplateHandler',
+    'NotificationSettingHandler',
+    'NotificationLogHandler',
+    'BackupHandler',
 ] 
