@@ -1,12 +1,20 @@
 """
-Пакет repositories содержит репозитории для работы с различными сущностями в базе данных.
+Пакет репозиториев для работы с базой данных.
 
-Репозитории предоставляют интерфейс для выполнения операций CRUD (Create, Read, Update, Delete)
-над сущностями, абстрагируя детали взаимодействия с базой данных.
+Репозитории предоставляют интерфейс для взаимодействия с базой данных
+и изолируют бизнес-логику от деталей хранения данных.
 """
 
-from .user_repository import UserRepository
+from bot.repositories.database_manager import DatabaseManager
+from bot.repositories.user_repository import UserRepository
+from bot.repositories.template_repository import TemplateRepository
+from bot.repositories.notification_setting_repository import NotificationSettingRepository
+from bot.repositories.notification_log_repository import NotificationLogRepository
 
 __all__ = [
+    'DatabaseManager',
     'UserRepository',
+    'TemplateRepository',
+    'NotificationSettingRepository',
+    'NotificationLogRepository'
 ] 

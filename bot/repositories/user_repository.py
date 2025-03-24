@@ -1,16 +1,18 @@
 """
-Репозиторий для работы с пользователями.
+Репозиторий пользователей.
 
-Этот модуль содержит репозиторий, отвечающий за операции CRUD с пользователями
-в базе данных.
+Этот модуль содержит класс UserRepository, отвечающий за управление
+пользователями в базе данных.
 """
 
-import logging
 from typing import List, Dict, Optional, Any, Tuple
-from datetime import datetime
+import logging
+from datetime import datetime, timedelta, date
+import sqlite3
 
-from bot.core.base_repository import BaseRepository
 from bot.core.models import User
+from bot.core.base_repository import BaseRepository
+from bot.repositories.database_manager import DatabaseManager
 
 logger = logging.getLogger(__name__)
 
@@ -19,320 +21,560 @@ class UserRepository(BaseRepository):
     """
     Репозиторий для работы с пользователями.
     
-    Предоставляет методы для создания, чтения, обновления и удаления
-    пользователей в базе данных.
+    Предоставляет методы для добавления, обновления, удаления и получения информации
+    о пользователях из базы данных.
     """
     
-    def get_by_id(self, user_id: int) -> Optional[User]:
+    def __init__(self, db_manager: DatabaseManager):
         """
-        Получение пользователя по ID.
+        Инициализация репозитория пользователей.
         
         Args:
-            user_id: ID пользователя
+            db_manager: Менеджер базы данных
+        """
+        super().__init__(db_manager)
+        
+    def add_user(self, user: User) -> Optional[int]:
+        """
+        Добавление нового пользователя в базу данных.
+        
+        Args:
+            user: Объект пользователя для добавления
             
         Returns:
-            Пользователь или None, если пользователь не найден
+            Optional[int]: ID добавленного пользователя или None в случае ошибки
         """
-        query = "SELECT * FROM users WHERE id = ?"
-        result = self.execute_query(query, (user_id,), fetchone=True)
+        try:
+            with self._db_manager.get_connection() as conn:
+                # Проверяем, существует ли таблица
+                conn.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    telegram_id INTEGER UNIQUE NOT NULL,
+                    username TEXT,
+                    first_name TEXT NOT NULL,
+                    last_name TEXT,
+                    birth_date TEXT NOT NULL,
+                    is_admin BOOLEAN DEFAULT 0,
+                    is_subscribed BOOLEAN DEFAULT 0,
+                    is_notifications_enabled BOOLEAN DEFAULT 1,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+                """)
+                
+                # Проверяем, существует ли пользователь с таким telegram_id
+                existing_user = conn.execute(
+                    "SELECT id FROM users WHERE telegram_id = ?",
+                    (user.telegram_id,)
+                ).fetchone()
+                
+                if existing_user:
+                    # Обновляем существующего пользователя
+                    conn.execute("""
+                    UPDATE users
+                    SET 
+                        username = ?,
+                        first_name = ?,
+                        last_name = ?,
+                        birth_date = ?,
+                        is_admin = ?,
+                        is_subscribed = ?,
+                        is_notifications_enabled = ?,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE telegram_id = ?
+                    """, (
+                        user.username,
+                        user.first_name,
+                        user.last_name,
+                        user.birth_date,
+                        user.is_admin,
+                        user.is_subscribed,
+                        user.is_notifications_enabled,
+                        user.telegram_id
+                    ))
+                    
+                    logger.info(f"Пользователь обновлен: {user.first_name} {user.last_name} (ID: {user.telegram_id})")
+                    return existing_user['id']
+                else:
+                    # Добавляем нового пользователя
+                    cursor = conn.execute("""
+                    INSERT INTO users (
+                        telegram_id,
+                        username,
+                        first_name,
+                        last_name,
+                        birth_date,
+                        is_admin,
+                        is_subscribed,
+                        is_notifications_enabled
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        user.telegram_id,
+                        user.username,
+                        user.first_name,
+                        user.last_name,
+                        user.birth_date,
+                        user.is_admin,
+                        user.is_subscribed,
+                        user.is_notifications_enabled
+                    ))
+                    
+                    logger.info(f"Новый пользователь добавлен: {user.first_name} {user.last_name} (ID: {user.telegram_id})")
+                    return cursor.lastrowid
+                    
+        except Exception as e:
+            logger.error(f"Ошибка добавления пользователя: {str(e)}")
+            return None
+            
+    def delete_user(self, telegram_id: int) -> bool:
+        """
+        Удаление пользователя из базы данных.
         
-        if result:
-            return self.to_entity(result)
-        return None
-    
-    def get_by_telegram_id(self, telegram_id: int) -> Optional[User]:
+        Args:
+            telegram_id: Telegram ID пользователя для удаления
+            
+        Returns:
+            bool: True, если пользователь удален успешно, иначе False
         """
-        Получение пользователя по Telegram ID.
+        try:
+            with self._db_manager.get_connection() as conn:
+                # Проверяем, существует ли пользователь
+                existing_user = conn.execute(
+                    "SELECT id FROM users WHERE telegram_id = ?",
+                    (telegram_id,)
+                ).fetchone()
+                
+                if not existing_user:
+                    logger.warning(f"Пользователь с ID {telegram_id} не найден для удаления")
+                    return False
+                    
+                # Удаляем пользователя
+                conn.execute("DELETE FROM users WHERE telegram_id = ?", (telegram_id,))
+                logger.info(f"Пользователь удален: ID {telegram_id}")
+                return True
+                
+        except Exception as e:
+            logger.error(f"Ошибка удаления пользователя: {str(e)}")
+            return False
+            
+    def get_user_by_telegram_id(self, telegram_id: int) -> Optional[User]:
+        """
+        Получение пользователя по его Telegram ID.
         
         Args:
             telegram_id: Telegram ID пользователя
             
         Returns:
-            Пользователь или None, если пользователь не найден
+            Optional[User]: Объект пользователя или None, если пользователь не найден
         """
-        query = "SELECT * FROM users WHERE telegram_id = ?"
-        result = self.execute_query(query, (telegram_id,), fetchone=True)
-        
-        if result:
-            return self.to_entity(result)
-        return None
-    
-    def get_by_username(self, username: str) -> Optional[User]:
-        """
-        Получение пользователя по имени пользователя.
-        
-        Args:
-            username: Имя пользователя
-            
-        Returns:
-            Пользователь или None, если пользователь не найден
-        """
-        query = "SELECT * FROM users WHERE username = ?"
-        result = self.execute_query(query, (username,), fetchone=True)
-        
-        if result:
-            return self.to_entity(result)
-        return None
-    
-    def get_all(self) -> List[User]:
-        """
-        Получение всех пользователей.
-        
-        Returns:
-            Список всех пользователей
-        """
-        query = "SELECT * FROM users ORDER BY id"
-        results = self.execute_query(query)
-        
-        return [self.to_entity(user) for user in results]
-    
-    def get_admins(self) -> List[User]:
-        """
-        Получение всех администраторов.
-        
-        Returns:
-            Список всех администраторов
-        """
-        query = "SELECT * FROM users WHERE is_admin = 1 ORDER BY id"
-        results = self.execute_query(query)
-        
-        return [self.to_entity(user) for user in results]
-    
-    def get_admin_ids(self) -> List[int]:
-        """
-        Получение Telegram ID всех администраторов.
-        
-        Returns:
-            Список Telegram ID всех администраторов
-        """
-        query = "SELECT telegram_id FROM users WHERE is_admin = 1"
-        results = self.execute_query(query)
-        
-        return [user['telegram_id'] for user in results]
-    
-    def get_subscribed_users(self) -> List[User]:
-        """
-        Получение всех подписанных пользователей.
-        
-        Returns:
-            Список всех подписанных пользователей
-        """
-        query = "SELECT * FROM users WHERE is_subscribed = 1 ORDER BY id"
-        results = self.execute_query(query)
-        
-        return [self.to_entity(user) for user in results]
-    
-    def get_users_with_birthdays(self, days_before: int) -> List[User]:
-        """
-        Получение пользователей, у которых скоро день рождения.
-        
-        Args:
-            days_before: Количество дней до дня рождения
-            
-        Returns:
-            Список пользователей, у которых скоро день рождения
-        """
-        query = """
-        SELECT * FROM users
-        WHERE 
-            birth_date IS NOT NULL
-            AND (
-                strftime('%m-%d', birth_date) = strftime('%m-%d', 'now', '+' || ? || ' days')
-            )
-        """
-        results = self.execute_query(query, (days_before,))
-        
-        return [self.to_entity(user) for user in results]
-    
-    def create(self, user: User) -> int:
-        """
-        Создание нового пользователя.
-        
-        Args:
-            user: Пользователь для создания
-            
-        Returns:
-            ID созданного пользователя
-        """
-        query = """
-        INSERT INTO users (
-            telegram_id, username, first_name, last_name, birth_date,
-            is_admin, is_subscribed, is_notifications_enabled, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-        """
-        
-        data = self.to_db_dict(user)
-        
         try:
-            with self.get_connection() as conn:
-                cursor = conn.execute(query, (
-                    data['telegram_id'],
-                    data['username'],
-                    data['first_name'],
-                    data['last_name'],
-                    data['birth_date'],
-                    1 if data['is_admin'] else 0,
-                    1 if data['is_subscribed'] else 0,
-                    1 if data['is_notifications_enabled'] else 0
+            with self._db_manager.get_connection() as conn:
+                user_data = conn.execute("""
+                SELECT 
+                    id,
+                    telegram_id,
+                    username,
+                    first_name,
+                    last_name,
+                    birth_date,
+                    is_admin,
+                    is_subscribed,
+                    is_notifications_enabled,
+                    created_at,
+                    updated_at
+                FROM users
+                WHERE telegram_id = ?
+                """, (telegram_id,)).fetchone()
+                
+                if not user_data:
+                    return None
+                    
+                return User(
+                    id=user_data['id'],
+                    telegram_id=user_data['telegram_id'],
+                    username=user_data['username'],
+                    first_name=user_data['first_name'],
+                    last_name=user_data['last_name'],
+                    birth_date=user_data['birth_date'],
+                    is_admin=bool(user_data['is_admin']),
+                    is_subscribed=bool(user_data['is_subscribed']),
+                    is_notifications_enabled=bool(user_data['is_notifications_enabled']),
+                    created_at=user_data['created_at'],
+                    updated_at=user_data['updated_at']
+                )
+                
+        except Exception as e:
+            logger.error(f"Ошибка получения пользователя: {str(e)}")
+            return None
+            
+    def get_all_users(self) -> List[User]:
+        """
+        Получение всех пользователей из базы данных.
+        
+        Returns:
+            List[User]: Список объектов пользователей
+        """
+        try:
+            with self._db_manager.get_connection() as conn:
+                users_data = conn.execute("""
+                SELECT 
+                    id,
+                    telegram_id,
+                    username,
+                    first_name,
+                    last_name,
+                    birth_date,
+                    is_admin,
+                    is_subscribed,
+                    is_notifications_enabled,
+                    created_at,
+                    updated_at
+                FROM users
+                """).fetchall()
+                
+                users = []
+                for user_data in users_data:
+                    users.append(User(
+                        id=user_data['id'],
+                        telegram_id=user_data['telegram_id'],
+                        username=user_data['username'],
+                        first_name=user_data['first_name'],
+                        last_name=user_data['last_name'],
+                        birth_date=user_data['birth_date'],
+                        is_admin=bool(user_data['is_admin']),
+                        is_subscribed=bool(user_data['is_subscribed']),
+                        is_notifications_enabled=bool(user_data['is_notifications_enabled']),
+                        created_at=user_data['created_at'],
+                        updated_at=user_data['updated_at']
+                    ))
+                    
+                return users
+                
+        except Exception as e:
+            logger.error(f"Ошибка получения всех пользователей: {str(e)}")
+            return []
+            
+    def get_users_with_birthdays_between(self, start_date: date, end_date: date) -> List[User]:
+        """
+        Получение пользователей, у которых день рождения в указанном диапазоне дат.
+        
+        Args:
+            start_date: Начальная дата диапазона
+            end_date: Конечная дата диапазона
+            
+        Returns:
+            List[User]: Список пользователей с днями рождения в указанном диапазоне
+        """
+        try:
+            with self._db_manager.get_connection() as conn:
+                # Получаем пользователей, у которых месяц и день рождения попадают в указанный диапазон
+                users_data = conn.execute("""
+                SELECT 
+                    id,
+                    telegram_id,
+                    username,
+                    first_name,
+                    last_name,
+                    birth_date,
+                    is_admin,
+                    is_subscribed,
+                    is_notifications_enabled,
+                    created_at,
+                    updated_at
+                FROM users
+                WHERE 
+                    is_notifications_enabled = 1
+                    AND is_subscribed = 1
+                """).fetchall()
+                
+                # Фильтруем пользователей по дате рождения
+                users = []
+                for user_data in users_data:
+                    try:
+                        birth_date_str = user_data['birth_date']
+                        birth_date_obj = datetime.strptime(birth_date_str, "%Y-%m-%d").date()
+                        
+                        # Создаем "эквивалентную" дату рождения для текущего года
+                        current_year = datetime.now().year
+                        current_year_birthday = date(current_year, birth_date_obj.month, birth_date_obj.day)
+                        
+                        # Проверяем, попадает ли день рождения в указанный диапазон
+                        if start_date <= current_year_birthday <= end_date:
+                            users.append(User(
+                                id=user_data['id'],
+                                telegram_id=user_data['telegram_id'],
+                                username=user_data['username'],
+                                first_name=user_data['first_name'],
+                                last_name=user_data['last_name'],
+                                birth_date=user_data['birth_date'],
+                                is_admin=bool(user_data['is_admin']),
+                                is_subscribed=bool(user_data['is_subscribed']),
+                                is_notifications_enabled=bool(user_data['is_notifications_enabled']),
+                                created_at=user_data['created_at'],
+                                updated_at=user_data['updated_at']
+                            ))
+                    except ValueError as ve:
+                        logger.warning(f"Неверный формат даты рождения для пользователя {user_data['id']}: {str(ve)}")
+                    
+                return users
+                
+        except Exception as e:
+            logger.error(f"Ошибка получения пользователей по диапазону дат: {str(e)}")
+            return []
+            
+    def get_upcoming_birthdays(self, days_ahead: int = 7) -> List[Dict[str, Any]]:
+        """
+        Получение ближайших дней рождения пользователей.
+        
+        Args:
+            days_ahead: Количество дней вперед для поиска
+            
+        Returns:
+            List[Dict[str, Any]]: Список словарей с информацией о пользователях и их днях рождения
+        """
+        try:
+            today = datetime.now().date()
+            end_date = today + timedelta(days=days_ahead)
+            
+            users = self.get_users_with_birthdays_between(today, end_date)
+            
+            # Преобразуем в список словарей с дополнительной информацией
+            birthday_info = []
+            current_year = datetime.now().year
+            
+            for user in users:
+                try:
+                    birth_date_obj = datetime.strptime(user.birth_date, "%Y-%m-%d").date()
+                    current_year_birthday = date(current_year, birth_date_obj.month, birth_date_obj.day)
+                    
+                    # Рассчитываем количество дней до дня рождения
+                    days_until = (current_year_birthday - today).days
+                    
+                    # Рассчитываем возраст
+                    age = current_year - birth_date_obj.year
+                    
+                    birthday_info.append({
+                        "user": user,
+                        "days_until": days_until,
+                        "birthday_date": current_year_birthday,
+                        "age": age
+                    })
+                except ValueError as ve:
+                    logger.warning(f"Неверный формат даты рождения для пользователя {user.id}: {str(ve)}")
+            
+            # Сортируем по количеству дней до дня рождения
+            birthday_info.sort(key=lambda x: x["days_until"])
+            
+            return birthday_info
+                
+        except Exception as e:
+            logger.error(f"Ошибка получения ближайших дней рождения: {str(e)}")
+            return []
+            
+    def update_user(self, user: User) -> bool:
+        """
+        Обновление информации о пользователе.
+        
+        Args:
+            user: Объект пользователя с обновленными данными
+            
+        Returns:
+            bool: True, если обновление прошло успешно, иначе False
+        """
+        try:
+            with self._db_manager.get_connection() as conn:
+                # Проверяем, существует ли пользователь
+                existing_user = conn.execute(
+                    "SELECT id FROM users WHERE telegram_id = ?",
+                    (user.telegram_id,)
+                ).fetchone()
+                
+                if not existing_user:
+                    logger.warning(f"Пользователь с ID {user.telegram_id} не найден для обновления")
+                    return False
+                    
+                # Обновляем пользователя
+                conn.execute("""
+                UPDATE users
+                SET 
+                    username = ?,
+                    first_name = ?,
+                    last_name = ?,
+                    birth_date = ?,
+                    is_admin = ?,
+                    is_subscribed = ?,
+                    is_notifications_enabled = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE telegram_id = ?
+                """, (
+                    user.username,
+                    user.first_name,
+                    user.last_name,
+                    user.birth_date,
+                    user.is_admin,
+                    user.is_subscribed,
+                    user.is_notifications_enabled,
+                    user.telegram_id
                 ))
                 
-                # Получаем ID созданного пользователя
-                user_id = cursor.lastrowid
+                logger.info(f"Пользователь обновлен: {user.first_name} {user.last_name} (ID: {user.telegram_id})")
+                return True
                 
-                return user_id
-        except Exception as e:
-            logger.error(f"Ошибка создания пользователя: {str(e)}")
-            raise
-    
-    def update(self, user_id: int, user: User) -> bool:
-        """
-        Обновление пользователя.
-        
-        Args:
-            user_id: ID пользователя
-            user: Обновленный пользователь
-            
-        Returns:
-            True, если обновление прошло успешно, иначе False
-        """
-        query = """
-        UPDATE users SET
-            username = ?,
-            first_name = ?,
-            last_name = ?,
-            birth_date = ?,
-            is_admin = ?,
-            is_subscribed = ?,
-            is_notifications_enabled = ?,
-            updated_at = datetime('now')
-        WHERE id = ?
-        """
-        
-        data = self.to_db_dict(user)
-        
-        try:
-            rows_affected = self.execute_update(query, (
-                data['username'],
-                data['first_name'],
-                data['last_name'],
-                data['birth_date'],
-                1 if data['is_admin'] else 0,
-                1 if data['is_subscribed'] else 0,
-                1 if data['is_notifications_enabled'] else 0,
-                user_id
-            ))
-            
-            return rows_affected > 0
         except Exception as e:
             logger.error(f"Ошибка обновления пользователя: {str(e)}")
-            raise
-    
-    def delete(self, user_id: int) -> bool:
+            return False
+            
+    def update_user_subscription(self, telegram_id: int, is_subscribed: bool) -> bool:
         """
-        Удаление пользователя.
+        Обновление статуса подписки пользователя.
         
         Args:
-            user_id: ID пользователя
+            telegram_id: Telegram ID пользователя
+            is_subscribed: Новый статус подписки
             
         Returns:
-            True, если удаление прошло успешно, иначе False
+            bool: True, если обновление прошло успешно, иначе False
         """
-        query = "DELETE FROM users WHERE id = ?"
-        
         try:
-            rows_affected = self.execute_update(query, (user_id,))
-            
-            return rows_affected > 0
+            with self._db_manager.get_connection() as conn:
+                # Проверяем, существует ли пользователь
+                existing_user = conn.execute(
+                    "SELECT id FROM users WHERE telegram_id = ?",
+                    (telegram_id,)
+                ).fetchone()
+                
+                if not existing_user:
+                    logger.warning(f"Пользователь с ID {telegram_id} не найден для обновления подписки")
+                    return False
+                    
+                # Обновляем статус подписки
+                conn.execute("""
+                UPDATE users
+                SET 
+                    is_subscribed = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE telegram_id = ?
+                """, (is_subscribed, telegram_id))
+                
+                logger.info(f"Статус подписки пользователя обновлен: ID {telegram_id}, is_subscribed={is_subscribed}")
+                return True
+                
         except Exception as e:
-            logger.error(f"Ошибка удаления пользователя: {str(e)}")
-            raise
-    
-    def toggle_admin(self, user_id: int, is_admin: bool) -> bool:
+            logger.error(f"Ошибка обновления статуса подписки пользователя: {str(e)}")
+            return False
+            
+    def update_user_notifications(self, telegram_id: int, is_notifications_enabled: bool) -> bool:
         """
-        Изменение статуса администратора.
+        Обновление статуса уведомлений пользователя.
         
         Args:
-            user_id: ID пользователя
-            is_admin: True - назначить администратором, False - отозвать права администратора
+            telegram_id: Telegram ID пользователя
+            is_notifications_enabled: Новый статус уведомлений
             
         Returns:
-            True, если изменение прошло успешно, иначе False
+            bool: True, если обновление прошло успешно, иначе False
         """
-        query = "UPDATE users SET is_admin = ?, updated_at = datetime('now') WHERE id = ?"
-        
         try:
-            rows_affected = self.execute_update(query, (1 if is_admin else 0, user_id))
-            
-            return rows_affected > 0
+            with self._db_manager.get_connection() as conn:
+                # Проверяем, существует ли пользователь
+                existing_user = conn.execute(
+                    "SELECT id FROM users WHERE telegram_id = ?",
+                    (telegram_id,)
+                ).fetchone()
+                
+                if not existing_user:
+                    logger.warning(f"Пользователь с ID {telegram_id} не найден для обновления настроек уведомлений")
+                    return False
+                    
+                # Обновляем статус уведомлений
+                conn.execute("""
+                UPDATE users
+                SET 
+                    is_notifications_enabled = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE telegram_id = ?
+                """, (is_notifications_enabled, telegram_id))
+                
+                logger.info(f"Статус уведомлений пользователя обновлен: ID {telegram_id}, is_notifications_enabled={is_notifications_enabled}")
+                return True
+                
         except Exception as e:
-            logger.error(f"Ошибка изменения статуса администратора: {str(e)}")
-            raise
-    
-    def toggle_notifications(self, user_id: int, is_enabled: bool) -> bool:
+            logger.error(f"Ошибка обновления статуса уведомлений пользователя: {str(e)}")
+            return False
+            
+    def promote_to_admin(self, telegram_id: int) -> bool:
         """
-        Включение/отключение уведомлений.
+        Назначение пользователя администратором.
         
         Args:
-            user_id: ID пользователя
-            is_enabled: True - включить уведомления, False - отключить уведомления
+            telegram_id: Telegram ID пользователя
             
         Returns:
-            True, если изменение прошло успешно, иначе False
+            bool: True, если обновление прошло успешно, иначе False
         """
-        query = "UPDATE users SET is_notifications_enabled = ?, updated_at = datetime('now') WHERE id = ?"
-        
         try:
-            rows_affected = self.execute_update(query, (1 if is_enabled else 0, user_id))
-            
-            return rows_affected > 0
+            with self._db_manager.get_connection() as conn:
+                # Проверяем, существует ли пользователь
+                existing_user = conn.execute(
+                    "SELECT id FROM users WHERE telegram_id = ?",
+                    (telegram_id,)
+                ).fetchone()
+                
+                if not existing_user:
+                    logger.warning(f"Пользователь с ID {telegram_id} не найден для назначения администратором")
+                    return False
+                    
+                # Назначаем пользователя администратором
+                conn.execute("""
+                UPDATE users
+                SET 
+                    is_admin = 1,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE telegram_id = ?
+                """, (telegram_id,))
+                
+                logger.info(f"Пользователь с ID {telegram_id} назначен администратором")
+                return True
+                
         except Exception as e:
-            logger.error(f"Ошибка изменения статуса уведомлений: {str(e)}")
-            raise
-    
-    def to_entity(self, data: Dict[str, Any]) -> User:
+            logger.error(f"Ошибка назначения пользователя администратором: {str(e)}")
+            return False
+            
+    def demote_from_admin(self, telegram_id: int) -> bool:
         """
-        Преобразование данных из базы данных в объект User.
+        Отзыв прав администратора у пользователя.
         
         Args:
-            data: Данные из базы данных
+            telegram_id: Telegram ID пользователя
             
         Returns:
-            Объект User
+            bool: True, если обновление прошло успешно, иначе False
         """
-        return User(
-            id=data['id'],
-            telegram_id=data['telegram_id'],
-            username=data['username'],
-            first_name=data['first_name'],
-            last_name=data['last_name'],
-            birth_date=data['birth_date'],
-            is_admin=bool(data['is_admin']),
-            is_subscribed=bool(data['is_subscribed']),
-            is_notifications_enabled=bool(data['is_notifications_enabled']),
-            created_at=data['created_at'],
-            updated_at=data['updated_at']
-        )
-    
-    def to_db_dict(self, user: User) -> Dict[str, Any]:
-        """
-        Преобразование объекта User в словарь для сохранения в базе данных.
-        
-        Args:
-            user: Объект User
-            
-        Returns:
-            Словарь с данными пользователя
-        """
-        return {
-            'id': user.id,
-            'telegram_id': user.telegram_id,
-            'username': user.username,
-            'first_name': user.first_name,
-            'last_name': user.last_name,
-            'birth_date': user.birth_date,
-            'is_admin': user.is_admin,
-            'is_subscribed': user.is_subscribed,
-            'is_notifications_enabled': user.is_notifications_enabled,
-            'created_at': user.created_at,
-            'updated_at': user.updated_at
-        } 
+        try:
+            with self._db_manager.get_connection() as conn:
+                # Проверяем, существует ли пользователь
+                existing_user = conn.execute(
+                    "SELECT id FROM users WHERE telegram_id = ?",
+                    (telegram_id,)
+                ).fetchone()
+                
+                if not existing_user:
+                    logger.warning(f"Пользователь с ID {telegram_id} не найден для отзыва прав администратора")
+                    return False
+                    
+                # Отзываем права администратора
+                conn.execute("""
+                UPDATE users
+                SET 
+                    is_admin = 0,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE telegram_id = ?
+                """, (telegram_id,))
+                
+                logger.info(f"У пользователя с ID {telegram_id} отозваны права администратора")
+                return True
+                
+        except Exception as e:
+            logger.error(f"Ошибка отзыва прав администратора у пользователя: {str(e)}")
+            return False 
