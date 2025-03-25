@@ -23,7 +23,8 @@ from bot.handlers import (
     TemplateHandler,
     NotificationSettingHandler,
     NotificationLogHandler,
-    BackupHandler
+    BackupHandler,
+    GameHandler
 )
 from config import BOT_TOKEN, DATA_DIR
 
@@ -98,7 +99,8 @@ def main():
             TemplateHandler(bot, template_service, user_service),
             NotificationSettingHandler(bot, setting_service, template_service),
             NotificationLogHandler(bot, log_service),
-            BackupHandler(bot, backup_service)
+            BackupHandler(bot, backup_service),
+            GameHandler(bot, user_service)
         ]
         
         # Регистрация обработчиков

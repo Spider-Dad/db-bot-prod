@@ -83,7 +83,16 @@ EMOJI = {
     "template": "📋",
     "setting": "⚙️",
     "notification": "🔔",
-    "backup": "💾"
+    "backup": "💾",
+    
+    # Игры и развлечения
+    "game": "🎮",
+    "trophy": "🏆",
+    "dice": "🎲",
+    "slot": "🎰",
+    "play": "▶️",
+    "pause": "⏸",
+    "stop": "⏹"
 }
 
 # Справка по HTML-тегам и переменным шаблона

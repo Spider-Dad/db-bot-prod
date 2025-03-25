@@ -10,6 +10,7 @@ from .template_handler import TemplateHandler
 from .notification_setting_handler import NotificationSettingHandler
 from .notification_log_handler import NotificationLogHandler
 from .backup_handler import BackupHandler
+from .game_handler import GameHandler
 
 __all__ = [
     'BaseHandler',
@@ -18,4 +19,5 @@ __all__ = [
     'NotificationSettingHandler',
     'NotificationLogHandler',
     'BackupHandler',
+    'GameHandler',
 ] 
