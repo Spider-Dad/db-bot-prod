@@ -58,6 +58,18 @@ class UserService(BaseService):
         """
         return self.user_repository.get_by_id(user_id)
     
+    def get_user_by_username(self, username: str) -> Optional[User]:
+        """
+        Получение пользователя по имени пользователя (username).
+        
+        Args:
+            username: Имя пользователя
+            
+        Returns:
+            Пользователь или None, если пользователь не найден
+        """
+        return self.user_repository.get_user_by_username(username)
+    
     def get_all_users(self) -> List[User]:
         """
         Получение всех пользователей.

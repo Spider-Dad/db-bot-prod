@@ -626,50 +626,24 @@ class UserRepository(BaseRepository):
             'is_notifications_enabled': entity.is_notifications_enabled
         }
     
-    def get_by_id(self, id: int) -> Optional[User]:
+    def get_by_id(self, user_id: int) -> Optional[User]:
         """
-        Получение пользователя по ID.
+        Получение пользователя по ID в базе данных (алиас для get_user_by_id).
         
         Args:
-            id: ID пользователя
+            user_id: ID пользователя в базе данных
             
         Returns:
             Optional[User]: Объект пользователя или None, если пользователь не найден
         """
-        try:
-            with self._db_manager.get_connection() as conn:
-                user_data = conn.execute("""
-                SELECT 
-                    id,
-                    telegram_id,
-                    username,
-                    first_name,
-                    last_name,
-                    birth_date,
-                    is_admin,
-                    is_subscribed,
-                    is_notifications_enabled,
-                    created_at,
-                    updated_at
-                FROM users
-                WHERE id = ?
-                """, (id,)).fetchone()
-                
-                if not user_data:
-                    return None
-                    
-                return self.to_entity(dict(user_data))
-                
-        except Exception as e:
-            logger.error(f"Ошибка получения пользователя по ID: {str(e)}")
-            return None
+        return self.get_user_by_id(user_id)
     
     def get_all(self) -> List[User]:
         """
-        Получение всех пользователей.
+        Получение всех пользователей (алиас для get_all_users).
         
         Returns:
-            List[User]: Список объектов пользователей
+            List[User]: Список всех пользователей
         """
         return self.get_all_users()
     
@@ -718,4 +692,104 @@ class UserRepository(BaseRepository):
                 return self.delete_user(telegram_id)
         except Exception as e:
             logger.error(f"Ошибка удаления пользователя по ID: {str(e)}")
-            return False 
+            return False
+
+    def get_user_by_id(self, user_id: int) -> Optional[User]:
+        """
+        Получение пользователя по его ID в базе данных.
+        
+        Args:
+            user_id: ID пользователя в базе данных
+            
+        Returns:
+            Optional[User]: Объект пользователя или None, если пользователь не найден
+        """
+        try:
+            with self._db_manager.get_connection() as conn:
+                user_data = conn.execute("""
+                SELECT 
+                    id,
+                    telegram_id,
+                    username,
+                    first_name,
+                    last_name,
+                    birth_date,
+                    is_admin,
+                    is_subscribed,
+                    is_notifications_enabled,
+                    created_at,
+                    updated_at
+                FROM users
+                WHERE id = ?
+                """, (user_id,)).fetchone()
+                
+                if not user_data:
+                    return None
+                    
+                return User(
+                    id=user_data['id'],
+                    telegram_id=user_data['telegram_id'],
+                    username=user_data['username'],
+                    first_name=user_data['first_name'],
+                    last_name=user_data['last_name'],
+                    birth_date=user_data['birth_date'],
+                    is_admin=bool(user_data['is_admin']),
+                    is_subscribed=bool(user_data['is_subscribed']),
+                    is_notifications_enabled=bool(user_data['is_notifications_enabled']),
+                    created_at=user_data['created_at'],
+                    updated_at=user_data['updated_at'] if 'updated_at' in user_data else user_data['created_at']
+                )
+                
+        except Exception as e:
+            logger.error(f"Ошибка получения пользователя по ID: {str(e)}")
+            return None
+
+    def get_user_by_username(self, username: str) -> Optional[User]:
+        """
+        Получение пользователя по его имени пользователя (username).
+        
+        Args:
+            username: Имя пользователя
+            
+        Returns:
+            Optional[User]: Объект пользователя или None, если пользователь не найден
+        """
+        try:
+            with self._db_manager.get_connection() as conn:
+                user_data = conn.execute("""
+                SELECT 
+                    id,
+                    telegram_id,
+                    username,
+                    first_name,
+                    last_name,
+                    birth_date,
+                    is_admin,
+                    is_subscribed,
+                    is_notifications_enabled,
+                    created_at,
+                    created_at as updated_at
+                FROM users
+                WHERE username = ?
+                """, (username,)).fetchone()
+                
+                if not user_data:
+                    return None
+                    
+                return User(
+                    id=user_data['id'],
+                    telegram_id=user_data['telegram_id'],
+                    username=user_data['username'],
+                    first_name=user_data['first_name'],
+                    last_name=user_data['last_name'],
+                    birth_date=user_data['birth_date'],
+                    is_admin=bool(user_data['is_admin']),
+                    is_subscribed=bool(user_data['is_subscribed']),
+                    is_notifications_enabled=bool(user_data['is_notifications_enabled']),
+                    created_at=user_data['created_at'],
+                    updated_at=user_data['updated_at']
+                )
+                
+        except Exception as e:
+            logger.error(f"Ошибка получения пользователя по имени пользователя: {str(e)}")
+            return None 

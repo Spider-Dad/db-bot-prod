@@ -57,3 +57,32 @@ VALUES ('payment_phone', '7 920 132 2534', 'Номер телефона для �
 
 INSERT OR IGNORE INTO system_settings (key, value, description) 
 VALUES ('payment_name', 'Диана Ибрагимовна Рыжова', 'ФИО получателя платежа');
+
+-- Добавление столбца updated_at, если он отсутствует
+PRAGMA foreign_keys=off;
+
+-- Проверка и добавление столбца в таблицу users
+SELECT CASE 
+  WHEN NOT EXISTS(SELECT 1 FROM pragma_table_info('users') WHERE name='updated_at') THEN
+    ('ALTER TABLE users ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP')
+  ELSE
+    ('SELECT 1')
+END;
+
+-- Проверка и добавление столбца в таблицу notification_logs
+SELECT CASE 
+  WHEN NOT EXISTS(SELECT 1 FROM pragma_table_info('notification_logs') WHERE name='updated_at') THEN
+    ('ALTER TABLE notification_logs ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP')
+  ELSE
+    ('SELECT 1')
+END;
+
+-- Проверка и добавление столбца в таблицу notification_settings
+SELECT CASE 
+  WHEN NOT EXISTS(SELECT 1 FROM pragma_table_info('notification_settings') WHERE name='updated_at') THEN
+    ('ALTER TABLE notification_settings ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP')
+  ELSE
+    ('SELECT 1')
+END;
+
+PRAGMA foreign_keys=on;

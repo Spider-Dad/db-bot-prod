@@ -111,9 +111,9 @@ class UserHandler(BaseHandler):
         """
         try:
             # Получаем пользователей с ближайшими днями рождения (30 дней)
-            upcoming_birthdays = self.user_service.get_users_with_upcoming_birthdays(30)
+            birthday_info = self.user_service.get_users_with_upcoming_birthdays(30)
             
-            if not upcoming_birthdays:
+            if not birthday_info:
                 self.send_message(
                     message.chat.id,
                     f"{EMOJI['info']} В ближайшие 30 дней нет дней рождения."
@@ -123,11 +123,14 @@ class UserHandler(BaseHandler):
             # Формируем сообщение со списком дней рождения
             birthdays_text = f"{EMOJI['gift']} <b>Ближайшие дни рождения:</b>\n\n"
             
-            for user in upcoming_birthdays:
-                user_id = user.telegram_id
+            for info in birthday_info:
+                user = info.get("user")
+                days_until = info.get("days_until", 0)
+                
+                if not user:
+                    continue
+                    
                 name = f"{user.first_name} {user.last_name}".strip() if user.last_name else user.first_name
-                birth_date = user.birth_date
-                days_until = getattr(user, 'days_until', 0)  # Используем getattr для дополнительного поля days_until
                 
                 # Формируем строку с датой и именем
                 if days_until == 0:
@@ -138,8 +141,14 @@ class UserHandler(BaseHandler):
                     birthday_text = f"{EMOJI['clock']} <b>Завтра</b> - {name}"
                 else:
                     # День рождения в ближайшие дни
-                    birthday_date = datetime.strptime(birth_date, '%Y-%m-%d').date()
-                    birthday_text = f"{EMOJI['calendar']} <b>{birthday_date.strftime('%d.%m')}</b> ({days_until} дн.) - {name}"
+                    if user.birth_date:
+                        try:
+                            birthday_date = datetime.strptime(user.birth_date, '%Y-%m-%d').date()
+                            birthday_text = f"{EMOJI['calendar']} <b>{birthday_date.strftime('%d.%m')}</b> ({days_until} дн.) - {name}"
+                        except ValueError:
+                            birthday_text = f"{EMOJI['calendar']} <b>через {days_until} дн.</b> - {name}"
+                    else:
+                        birthday_text = f"{EMOJI['calendar']} <b>через {days_until} дн.</b> - {name}"
                 
                 birthdays_text += f"{birthday_text}\n"
             
@@ -262,30 +271,34 @@ class UserHandler(BaseHandler):
                 return
             
             # Формируем сообщение со списком пользователей
-            users_text = f"{EMOJI['users']} <b>Справочник пользователей ({len(users)}):</b>\n\n"
+            users_text = f"{EMOJI['user']} <b>Справочник пользователей ({len(users)}):</b>\n\n"
             
             for user in users:
                 user_id = user.telegram_id
-                username = user.username
-                name = f"{user.first_name} {user.last_name}".strip() if user.last_name else user.first_name
-                last_name = user.last_name
+                username = user.username or "Нет имени пользователя"
+                first_name = user.first_name or ""
+                last_name = user.last_name or ""
+                name = f"{first_name} {last_name}".strip() or "Имя не указано"
                 birthday = user.birth_date
                 is_admin = user.is_admin
-                notifications_enabled = user.notifications_enabled
+                notifications_enabled = user.is_notifications_enabled
                 
                 # Форматируем дату рождения
                 birthday_str = "Не указан"
                 if birthday:
-                    birth_date = datetime.strptime(birthday, '%Y-%m-%d')
-                    birthday_str = birth_date.strftime('%d.%m.%Y')
+                    try:
+                        birth_date = datetime.strptime(birthday, '%Y-%m-%d')
+                        birthday_str = birth_date.strftime('%d.%m.%Y')
+                    except ValueError:
+                        birthday_str = birthday
                 
                 # Иконки для статусов
                 admin_status = f"{EMOJI['admin']} Администратор" if is_admin else ""
-                notify_status = EMOJI['bell'] if notifications_enabled else EMOJI['bell_slash']
+                notify_status = EMOJI['active'] if notifications_enabled else EMOJI['inactive']
                 
                 # Формируем строку с информацией о пользователе
                 user_text = (
-                    f"<b>{name} {last_name}</b> (@{username}) {admin_status}\n"
+                    f"<b>{name}</b> (@{username}) {admin_status}\n"
                     f"ID: {user_id}\n"
                     f"День рождения: {birthday_str}\n"
                     f"Уведомления: {notify_status}\n\n"
