@@ -19,7 +19,7 @@ E = TypeVar('E')  # Тип для сущности
 logger = logging.getLogger(__name__)
 
 
-class BaseRepository(RepositoryInterface[T, E], ABC):
+class BaseRepository(RepositoryInterface[T, E]):
     """
     Базовый класс для всех репозиториев.
     
@@ -27,14 +27,14 @@ class BaseRepository(RepositoryInterface[T, E], ABC):
     такую как управление соединениями и транзакциями.
     """
     
-    def __init__(self, db_path: str):
+    def __init__(self, db_manager):
         """
         Инициализация репозитория.
         
         Args:
-            db_path: Путь к файлу базы данных SQLite
+            db_manager: Менеджер базы данных
         """
-        self.db_path = db_path
+        self._db_manager = db_manager
         
     @contextmanager
     def get_connection(self):
@@ -47,17 +47,7 @@ class BaseRepository(RepositoryInterface[T, E], ABC):
         Yields:
             Соединение с базой данных
         """
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        try:
-            yield conn
-            conn.commit()
-        except Exception as e:
-            conn.rollback()
-            logger.error(f"Ошибка базы данных: {str(e)}")
-            raise
-        finally:
-            conn.close()
+        return self._db_manager.get_connection()
             
     def execute_query(self, query: str, params: Tuple = (), fetchone: bool = False) -> Union[List[Dict[str, Any]], Dict[str, Any], None]:
         """
@@ -106,7 +96,6 @@ class BaseRepository(RepositoryInterface[T, E], ABC):
             logger.error(f"Ошибка выполнения запроса изменения {query}: {str(e)}")
             raise
             
-    @abstractmethod
     def to_entity(self, data: Dict[str, Any]) -> E:
         """
         Преобразование данных из базы данных в сущность.
@@ -117,9 +106,8 @@ class BaseRepository(RepositoryInterface[T, E], ABC):
         Returns:
             Сущность
         """
-        pass
+        raise NotImplementedError("Метод to_entity должен быть переопределен в дочернем классе")
         
-    @abstractmethod
     def to_db_dict(self, entity: E) -> Dict[str, Any]:
         """
         Преобразование сущности в словарь для сохранения в базе данных.
@@ -130,4 +118,62 @@ class BaseRepository(RepositoryInterface[T, E], ABC):
         Returns:
             Словарь для сохранения в базе данных
         """
-        pass 
+        raise NotImplementedError("Метод to_db_dict должен быть переопределен в дочернем классе")
+        
+    def get_by_id(self, id: T) -> Optional[E]:
+        """
+        Получение сущности по идентификатору.
+        
+        Args:
+            id: Идентификатор сущности
+            
+        Returns:
+            Сущность или None, если сущность не найдена
+        """
+        raise NotImplementedError("Метод get_by_id должен быть переопределен в дочернем классе")
+    
+    def get_all(self) -> List[E]:
+        """
+        Получение всех сущностей.
+        
+        Returns:
+            Список всех сущностей
+        """
+        raise NotImplementedError("Метод get_all должен быть переопределен в дочернем классе")
+    
+    def create(self, entity: E) -> T:
+        """
+        Создание новой сущности.
+        
+        Args:
+            entity: Сущность для создания
+            
+        Returns:
+            Идентификатор созданной сущности
+        """
+        raise NotImplementedError("Метод create должен быть переопределен в дочернем классе")
+    
+    def update(self, id: T, entity: E) -> bool:
+        """
+        Обновление сущности.
+        
+        Args:
+            id: Идентификатор сущности
+            entity: Обновленная сущность
+            
+        Returns:
+            True, если обновление прошло успешно, иначе False
+        """
+        raise NotImplementedError("Метод update должен быть переопределен в дочернем классе")
+    
+    def delete(self, id: T) -> bool:
+        """
+        Удаление сущности.
+        
+        Args:
+            id: Идентификатор сущности
+            
+        Returns:
+            True, если удаление прошло успешно, иначе False
+        """
+        raise NotImplementedError("Метод delete должен быть переопределен в дочернем классе") 

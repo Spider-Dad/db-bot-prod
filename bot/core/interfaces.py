@@ -21,7 +21,6 @@ class RepositoryInterface(Generic[T, E], ABC):
     для работы с хранилищем данных.
     """
     
-    @abstractmethod
     def get_by_id(self, id: T) -> Optional[E]:
         """
         Получение сущности по идентификатору.
@@ -34,7 +33,6 @@ class RepositoryInterface(Generic[T, E], ABC):
         """
         pass
     
-    @abstractmethod
     def get_all(self) -> List[E]:
         """
         Получение всех сущностей.
@@ -44,7 +42,6 @@ class RepositoryInterface(Generic[T, E], ABC):
         """
         pass
     
-    @abstractmethod
     def create(self, entity: E) -> T:
         """
         Создание новой сущности.
@@ -57,7 +54,6 @@ class RepositoryInterface(Generic[T, E], ABC):
         """
         pass
     
-    @abstractmethod
     def update(self, id: T, entity: E) -> bool:
         """
         Обновление сущности.
@@ -71,7 +67,6 @@ class RepositoryInterface(Generic[T, E], ABC):
         """
         pass
     
-    @abstractmethod
     def delete(self, id: T) -> bool:
         """
         Удаление сущности.

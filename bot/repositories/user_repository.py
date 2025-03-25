@@ -577,4 +577,145 @@ class UserRepository(BaseRepository):
                 
         except Exception as e:
             logger.error(f"Ошибка отзыва прав администратора у пользователя: {str(e)}")
+            return False
+
+    # Реализация абстрактных методов из BaseRepository
+    
+    def to_entity(self, data: Dict[str, Any]) -> User:
+        """
+        Преобразование данных из базы данных в объект User.
+        
+        Args:
+            data: Данные из базы данных
+            
+        Returns:
+            User: Объект пользователя
+        """
+        return User(
+            id=data.get('id'),
+            telegram_id=data.get('telegram_id'),
+            username=data.get('username'),
+            first_name=data.get('first_name'),
+            last_name=data.get('last_name'),
+            birth_date=data.get('birth_date'),
+            is_admin=bool(data.get('is_admin')),
+            is_subscribed=bool(data.get('is_subscribed')),
+            is_notifications_enabled=bool(data.get('is_notifications_enabled')),
+            created_at=data.get('created_at'),
+            updated_at=data.get('updated_at')
+        )
+    
+    def to_db_dict(self, entity: User) -> Dict[str, Any]:
+        """
+        Преобразование объекта User в словарь для сохранения в базе данных.
+        
+        Args:
+            entity: Объект пользователя
+            
+        Returns:
+            Dict[str, Any]: Словарь для сохранения в базе данных
+        """
+        return {
+            'telegram_id': entity.telegram_id,
+            'username': entity.username,
+            'first_name': entity.first_name,
+            'last_name': entity.last_name,
+            'birth_date': entity.birth_date,
+            'is_admin': entity.is_admin,
+            'is_subscribed': entity.is_subscribed,
+            'is_notifications_enabled': entity.is_notifications_enabled
+        }
+    
+    def get_by_id(self, id: int) -> Optional[User]:
+        """
+        Получение пользователя по ID.
+        
+        Args:
+            id: ID пользователя
+            
+        Returns:
+            Optional[User]: Объект пользователя или None, если пользователь не найден
+        """
+        try:
+            with self._db_manager.get_connection() as conn:
+                user_data = conn.execute("""
+                SELECT 
+                    id,
+                    telegram_id,
+                    username,
+                    first_name,
+                    last_name,
+                    birth_date,
+                    is_admin,
+                    is_subscribed,
+                    is_notifications_enabled,
+                    created_at,
+                    updated_at
+                FROM users
+                WHERE id = ?
+                """, (id,)).fetchone()
+                
+                if not user_data:
+                    return None
+                    
+                return self.to_entity(dict(user_data))
+                
+        except Exception as e:
+            logger.error(f"Ошибка получения пользователя по ID: {str(e)}")
+            return None
+    
+    def get_all(self) -> List[User]:
+        """
+        Получение всех пользователей.
+        
+        Returns:
+            List[User]: Список объектов пользователей
+        """
+        return self.get_all_users()
+    
+    def create(self, entity: User) -> int:
+        """
+        Создание нового пользователя.
+        
+        Args:
+            entity: Объект пользователя
+            
+        Returns:
+            int: ID созданного пользователя или None в случае ошибки
+        """
+        return self.add_user(entity)
+    
+    def update(self, id: int, entity: User) -> bool:
+        """
+        Обновление пользователя.
+        
+        Args:
+            id: ID пользователя
+            entity: Объект пользователя
+            
+        Returns:
+            bool: True, если обновление прошло успешно, иначе False
+        """
+        return self.update_user(entity)
+    
+    def delete(self, id: int) -> bool:
+        """
+        Удаление пользователя.
+        
+        Args:
+            id: ID пользователя
+            
+        Returns:
+            bool: True, если удаление прошло успешно, иначе False
+        """
+        try:
+            with self._db_manager.get_connection() as conn:
+                user_data = conn.execute("SELECT telegram_id FROM users WHERE id = ?", (id,)).fetchone()
+                if not user_data:
+                    return False
+                
+                telegram_id = user_data['telegram_id']
+                return self.delete_user(telegram_id)
+        except Exception as e:
+            logger.error(f"Ошибка удаления пользователя по ID: {str(e)}")
             return False 
