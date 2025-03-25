@@ -46,6 +46,18 @@ class UserService(BaseService):
         """
         return self.user_repository.get_user_by_telegram_id(telegram_id)
     
+    def get_user_by_id(self, user_id: int) -> Optional[User]:
+        """
+        Получение пользователя по ID пользователя в базе данных.
+        
+        Args:
+            user_id: ID пользователя в базе данных
+            
+        Returns:
+            Пользователь или None, если пользователь не найден
+        """
+        return self.user_repository.get_by_id(user_id)
+    
     def get_all_users(self) -> List[User]:
         """
         Получение всех пользователей.
@@ -144,6 +156,18 @@ class UserService(BaseService):
             Список словарей с информацией о пользователях и их днях рождения
         """
         return self.user_repository.get_upcoming_birthdays(days_ahead)
+    
+    def get_users_with_upcoming_birthdays(self, days_ahead: int = 7) -> List[Dict[str, Any]]:
+        """
+        Получение пользователей с ближайшими днями рождения (алиас для get_upcoming_birthdays).
+        
+        Args:
+            days_ahead: Количество дней вперед для поиска
+            
+        Returns:
+            Список словарей с информацией о пользователях и их днях рождения
+        """
+        return self.get_upcoming_birthdays(days_ahead)
     
     def get_users_with_birthdays_between(self, start_date: date, end_date: date) -> List[User]:
         """

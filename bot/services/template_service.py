@@ -6,7 +6,7 @@
 """
 
 import logging
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, Union
 
 from bot.core.base_service import BaseService
 from bot.core.models import NotificationTemplate
@@ -141,23 +141,27 @@ class TemplateService(BaseService):
         """
         return self.template_repository.get_all_categories()
     
-    def format_template(self, template: NotificationTemplate, context: Dict[str, Any]) -> str:
+    def format_template(self, template: Union[NotificationTemplate, str], context: Dict[str, Any]) -> str:
         """
         Форматирование шаблона с использованием контекста.
         
         Args:
-            template: Шаблон для форматирования
+            template: Шаблон для форматирования (объект NotificationTemplate или строка)
             context: Словарь с данными для подстановки в шаблон
             
         Returns:
             Отформатированный текст шаблона
         """
         try:
+            # Определяем текст шаблона в зависимости от типа входного параметра
+            template_text = template.template if isinstance(template, NotificationTemplate) else template
+            
             # Используем стандартный метод format для подстановки значений
-            return template.template.format(**context)
+            return template_text.format(**context)
         except Exception as e:
-            logger.error(f"Ошибка форматирования шаблона {template.name}: {str(e)}")
-            return template.template
+            template_name = getattr(template, 'name', 'Unknown') if isinstance(template, NotificationTemplate) else 'Unknown'
+            logger.error(f"Ошибка форматирования шаблона {template_name}: {str(e)}")
+            return template_text if isinstance(template, str) else template.template
     
     def execute(self, *args, **kwargs) -> Any:
         """
