@@ -450,14 +450,14 @@ class NotificationSettingRepository(BaseRepository):
             
     def get_settings_for_time(self, time_str: str, active_only: bool = True) -> List[NotificationSetting]:
         """
-        Получение настроек уведомлений для указанного времени.
+        Получение настроек для указанного времени.
         
         Args:
             time_str: Время в формате HH:MM
             active_only: Если True, возвращает только активные настройки
             
         Returns:
-            List[NotificationSetting]: Список объектов настроек
+            List[NotificationSetting]: Список настроек
         """
         try:
             with self._db_manager.get_connection() as conn:
@@ -497,4 +497,64 @@ class NotificationSettingRepository(BaseRepository):
                 
         except Exception as e:
             logger.error(f"Ошибка получения настроек для времени {time_str}: {str(e)}")
-            return [] 
+            return []
+
+    def get_payment_phone(self) -> Optional[str]:
+        """
+        Получение телефона для платежей из настроек.
+        
+        Returns:
+            str: Телефон для платежей или None, если настройка не найдена
+        """
+        try:
+            with self._db_manager.get_connection() as conn:
+                # Проверяем, существует ли таблица системных настроек
+                conn.execute("""
+                CREATE TABLE IF NOT EXISTS system_settings (
+                    key TEXT PRIMARY KEY,
+                    value TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+                """)
+                
+                # Получаем значение настройки из таблицы
+                result = conn.execute("""
+                SELECT value FROM system_settings WHERE key = 'payment_phone'
+                """).fetchone()
+                
+                return result['value'] if result else None
+                
+        except Exception as e:
+            logger.error(f"Ошибка получения телефона для платежей: {str(e)}")
+            return None
+    
+    def get_payment_name(self) -> Optional[str]:
+        """
+        Получение имени получателя для платежей из настроек.
+        
+        Returns:
+            str: Имя получателя для платежей или None, если настройка не найдена
+        """
+        try:
+            with self._db_manager.get_connection() as conn:
+                # Проверяем, существует ли таблица системных настроек
+                conn.execute("""
+                CREATE TABLE IF NOT EXISTS system_settings (
+                    key TEXT PRIMARY KEY,
+                    value TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+                """)
+                
+                # Получаем значение настройки из таблицы
+                result = conn.execute("""
+                SELECT value FROM system_settings WHERE key = 'payment_name'
+                """).fetchone()
+                
+                return result['value'] if result else None
+                
+        except Exception as e:
+            logger.error(f"Ошибка получения имени получателя для платежей: {str(e)}")
+            return None 

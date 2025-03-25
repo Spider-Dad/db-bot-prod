@@ -6,6 +6,9 @@
 """
 
 import logging
+import threading
+import time
+import pytz
 from typing import List, Dict, Optional, Any, Callable, Union
 from datetime import date, datetime, timedelta
 
@@ -29,37 +32,69 @@ class NotificationService(BaseService):
     
     def __init__(
         self,
+        bot,
         user_service: UserService,
         template_service: TemplateService,
         setting_service: NotificationSettingService,
-        log_service: NotificationLogService,
-        send_message_func: Callable[[int, str], bool] = None
+        log_service: NotificationLogService
     ):
         """
         Инициализация сервиса оповещений.
         
         Args:
+            bot: Экземпляр бота Telegram
             user_service: Сервис пользователей
             template_service: Сервис шаблонов оповещений
             setting_service: Сервис настроек оповещений
             log_service: Сервис журнала оповещений
-            send_message_func: Функция для отправки сообщений
         """
         super().__init__()
+        self.bot = bot
         self.user_service = user_service
         self.template_service = template_service
         self.setting_service = setting_service
         self.log_service = log_service
-        self.send_message_func = send_message_func
+        
+        # Инициализация планировщика уведомлений
+        self._scheduler_thread = None
+        self._stop_flag = False
+        self._last_sent_notifications = {}  # Кэш отправленных уведомлений
+        self.moscow_tz = pytz.timezone('Europe/Moscow')
+        
+        # Определение функции отправки сообщений
+        self.send_message_func = self._send_message
     
-    def set_send_function(self, send_message_func: Callable[[int, str], bool]):
+    def _send_message(self, chat_id: int, text: str, parse_mode: str = 'HTML') -> bool:
         """
-        Установка функции для отправки сообщений.
+        Отправка сообщения через бота.
         
         Args:
-            send_message_func: Функция для отправки сообщений пользователям
+            chat_id: ID чата
+            text: Текст сообщения
+            parse_mode: Режим парсинга сообщения
+            
+        Returns:
+            True, если сообщение успешно отправлено, иначе False
         """
-        self.send_message_func = send_message_func
+        try:
+            self.bot.send_message(
+                chat_id=chat_id,
+                text=text,
+                parse_mode=parse_mode
+            )
+            return True
+        except Exception as e:
+            logger.error(f"Ошибка отправки сообщения пользователю {chat_id}: {e}")
+            return False
+    
+    def _get_current_moscow_time(self) -> datetime:
+        """
+        Получить текущее время в московском часовом поясе.
+        
+        Returns:
+            Текущее время в московском часовом поясе
+        """
+        return datetime.now(self.moscow_tz)
     
     def send_notification(
         self, 
@@ -78,13 +113,9 @@ class NotificationService(BaseService):
         Returns:
             True, если оповещение успешно отправлено, иначе False
         """
-        if not self.send_message_func:
-            logger.error("Функция отправки сообщений не установлена")
-            return False
-        
         try:
             # Проверяем, что пользователь существует и у него включены оповещения
-            user = self.user_service.get_user_by_telegram_id(user_id)
+            user = self.user_service.get_user_by_id(user_id)
             if not user:
                 logger.warning(f"Пользователь с ID {user_id} не найден")
                 return False
@@ -138,10 +169,6 @@ class NotificationService(BaseService):
         Returns:
             Словарь с количеством успешных и неуспешных отправок
         """
-        if not self.send_message_func:
-            logger.error("Функция отправки сообщений не установлена")
-            return {"success": 0, "failed": 0}
-        
         try:
             # Получаем всех пользователей с включенными оповещениями
             users = self.user_service.get_all_users()
@@ -190,10 +217,6 @@ class NotificationService(BaseService):
         Returns:
             Словарь с количеством успешных и неуспешных отправок
         """
-        if not self.send_message_func:
-            logger.error("Функция отправки сообщений не установлена")
-            return {"success": 0, "failed": 0}
-        
         try:
             results = {"success": 0, "failed": 0}
             
@@ -294,36 +317,40 @@ class NotificationService(BaseService):
             Словарь с количеством успешных и неуспешных отправок
         """
         try:
+            # Получаем текущее время в формате ЧЧ:ММ для сравнения с настройками
+            current_time = self._get_current_moscow_time()
+            current_hour_minute = current_time.strftime("%H:%M")
+            
             # Получаем настройки оповещений для текущего времени
-            settings = self.setting_service.get_settings_for_current_time()
+            settings = self.setting_service.get_settings_for_time(current_hour_minute)
             
             if not settings:
-                logger.info("Нет настроек оповещений для текущего времени")
+                logger.debug(f"Нет настроек оповещений для времени {current_hour_minute}")
                 return {"success": 0, "failed": 0}
             
-            # Отправляем оповещения согласно каждой настройке
+            # Проверяем кэш оповещений - отправляем не чаще раза в 10 минут
+            current_10min = current_time.strftime('%Y%m%d_%H%M')[:-1]  # Округляем до десятков минут
             results = {"success": 0, "failed": 0}
             
             for setting in settings:
-                template_id = setting.get('template_id')
-                template = self.template_service.get_template_by_id(template_id)
+                setting_id = setting.get('id')
+                cache_key = f"{setting_id}_{current_10min}"
                 
-                if not template:
-                    logger.warning(f"Шаблон с ID {template_id} не найден")
+                if cache_key in self._last_sent_notifications:
+                    logger.debug(f"Пропуск отправки: уведомления уже были отправлены в интервале {current_10min}")
                     continue
-                
-                template_name = template.get('name')
                 
                 # Получаем пользователей с приближающимися днями рождения
                 days_ahead = setting.get('days_before')
                 birthdays_by_date = self.user_service.get_users_with_birthdays(days_ahead)
                 
                 if not birthdays_by_date:
-                    logger.info(f"Нет приближающихся дней рождения в течение {days_ahead} дней")
+                    logger.debug(f"Нет приближающихся дней рождения в течение {days_ahead} дней")
                     continue
                 
                 # Для каждой даты отправляем уведомления
                 today = datetime.now().date()
+                has_sent = False
                 
                 for birthday_date_str, users in birthdays_by_date.items():
                     try:
@@ -334,14 +361,26 @@ class NotificationService(BaseService):
                         if days_until != setting.get('days_before'):
                             continue
                         
+                        template_id = setting.get('template_id')
+                        template = self.template_service.get_template_by_id(template_id)
+                        
+                        if not template:
+                            logger.warning(f"Шаблон с ID {template_id} не найден")
+                            continue
+                        
+                        template_name = template.get('name')
+                        
                         # Для каждого пользователя с ДР в эту дату отправляем оповещения всем остальным
                         for birthday_user in users:
                             # Подготавливаем контекст для шаблона
                             context = {
                                 'name': birthday_user.get('name', ''),
-                                'username': birthday_user.get('username', ''),
+                                'first_name': birthday_user.get('first_name', ''),
+                                'last_name': birthday_user.get('last_name', ''),
                                 'date': birthday_date_str,
-                                'days_until': days_until
+                                'days_until': days_until,
+                                'phone_pay': self.setting_service.get_payment_phone() or '',
+                                'name_pay': self.setting_service.get_payment_name() or ''
                             }
                             
                             # Отправляем всем пользователям, кроме именинника
@@ -350,8 +389,13 @@ class NotificationService(BaseService):
                             
                             results["success"] += result["success"]
                             results["failed"] += result["failed"]
+                            has_sent = True
                     except Exception as e:
                         logger.error(f"Ошибка при обработке дня рождения {birthday_date_str}: {e}")
+                
+                # Добавляем запись в кэш только если было отправлено хотя бы одно оповещение
+                if has_sent:
+                    self._last_sent_notifications[cache_key] = True
             
             logger.info(f"Результат рассылки оповещений для текущего времени: {results}")
             return results
@@ -359,6 +403,115 @@ class NotificationService(BaseService):
         except Exception as e:
             logger.error(f"Ошибка при рассылке оповещений для текущего времени: {e}")
             return {"success": 0, "failed": 0}
+    
+    def _clear_notification_cache(self):
+        """
+        Очистка кэша отправленных уведомлений.
+        
+        Удаляет из кэша записи, которые не относятся к текущему 10-минутному интервалу.
+        """
+        try:
+            current_time = self._get_current_moscow_time()
+            current_10min = current_time.strftime('%Y%m%d_%H%M')[:-1]  # Округляем до десятков минут
+
+            # Оставляем только записи текущего 10-минутного интервала
+            self._last_sent_notifications = {
+                key: value for key, value in self._last_sent_notifications.items()
+                if key.split('_')[1] == current_10min
+            }
+
+            logger.info(f"Очищен кэш уведомлений, осталось {len(self._last_sent_notifications)} записей")
+        except Exception as e:
+            logger.error(f"Ошибка при очистке кеша уведомлений: {e}")
+            self._last_sent_notifications = {}  # При ошибке полностью очищаем кеш
+    
+    def _check_and_send_notifications(self):
+        """
+        Проверка и отправка уведомлений на основе текущего времени.
+        
+        Выполняется в отдельном потоке для периодической проверки и отправки
+        уведомлений в соответствии с настройками.
+        """
+        try:
+            current_time = self._get_current_moscow_time()
+            
+            # Перезагрузка настроек и очистка кеша каждые 10 минут
+            if current_time.minute % 10 == 0 and current_time.second < 30:
+                self.setting_service.reload_settings()
+                self._clear_notification_cache()
+                logger.info("Перезагрузка настроек и очистка кеша (10-минутный интервал)")
+            
+            # Отправляем уведомления для текущего времени
+            self.send_notifications_for_current_time()
+            
+        except Exception as e:
+            logger.error(f"Ошибка в _check_and_send_notifications: {e}")
+    
+    def _run_scheduler(self):
+        """
+        Запуск планировщика уведомлений.
+        
+        Выполняется в отдельном потоке и периодически проверяет необходимость
+        отправки уведомлений.
+        """
+        logger.info("Запуск планировщика уведомлений")
+        while not self._stop_flag:
+            try:
+                self._check_and_send_notifications()
+                time.sleep(60)  # Проверка каждую минуту
+            except Exception as e:
+                logger.error(f"Ошибка в планировщике уведомлений: {e}")
+                time.sleep(60)  # При ошибке ждем минуту перед следующей попыткой
+    
+    def start(self):
+        """
+        Запуск сервиса отправки уведомлений.
+        
+        Запускает планировщик в отдельном потоке для периодической
+        отправки уведомлений согласно настройкам.
+        """
+        logger.info("Запуск NotificationService")
+        if not self._scheduler_thread or not self._scheduler_thread.is_alive():
+            self._stop_flag = False
+            self._scheduler_thread = threading.Thread(target=self._run_scheduler)
+            self._scheduler_thread.daemon = True
+            self._scheduler_thread.start()
+            logger.info("NotificationService успешно запущен")
+    
+    def stop(self):
+        """
+        Остановка сервиса отправки уведомлений.
+        
+        Останавливает планировщик уведомлений.
+        """
+        logger.info("Остановка NotificationService")
+        self._stop_flag = True
+        if self._scheduler_thread:
+            self._scheduler_thread.join()
+        logger.info("NotificationService остановлен")
+    
+    def reload_settings(self):
+        """
+        Перезагрузка настроек уведомлений.
+        
+        Обновляет настройки из базы данных.
+        """
+        logger.info("Принудительная перезагрузка настроек уведомлений")
+        self.setting_service.reload_settings()
+    
+    def force_send_notification(self, user_id: int, template_name: str, context: Dict[str, Any] = None) -> bool:
+        """
+        Принудительная отправка уведомления конкретному пользователю.
+        
+        Args:
+            user_id: ID пользователя
+            template_name: Имя шаблона уведомления
+            context: Контекст для форматирования шаблона
+            
+        Returns:
+            True, если уведомление успешно отправлено, иначе False
+        """
+        return self.send_notification(user_id, template_name, context)
     
     def execute(self, *args, **kwargs) -> Any:
         """
