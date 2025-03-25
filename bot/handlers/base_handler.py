@@ -53,7 +53,10 @@ class BaseHandler:
         return user_id in ADMIN_IDS
     
     def send_message(self, chat_id: int, text: str, parse_mode: str = 'HTML',
-                    reply_markup: Optional[telebot.types.ReplyMarkup] = None) -> None:
+                    reply_markup: Optional[Union[telebot.types.InlineKeyboardMarkup, 
+                            telebot.types.ReplyKeyboardMarkup, 
+                            telebot.types.ReplyKeyboardRemove, 
+                            telebot.types.ForceReply]] = None) -> None:
         """
         Отправка сообщения с обработкой ошибок.
         

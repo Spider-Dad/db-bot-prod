@@ -1,6 +1,7 @@
 import os
 import logging
 from typing import List
+from dotenv import load_dotenv
 from bot.constants import DEFAULT_NOTIFICATION_TEMPLATES, DEFAULT_NOTIFICATION_SETTINGS
 
 """
@@ -11,6 +12,9 @@ from bot.constants import DEFAULT_NOTIFICATION_TEMPLATES, DEFAULT_NOTIFICATION_S
 
 Для запуска на сервере установите переменную окружения SERVER_ENV=production.
 """
+
+# Загрузка переменных из файла .env
+load_dotenv()
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
