@@ -58,8 +58,7 @@ class UserRepository(BaseRepository):
                     is_admin BOOLEAN DEFAULT 0,
                     is_subscribed BOOLEAN DEFAULT 0,
                     is_notifications_enabled BOOLEAN DEFAULT 1,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
                 """)
                 
@@ -80,8 +79,7 @@ class UserRepository(BaseRepository):
                         birth_date = ?,
                         is_admin = ?,
                         is_subscribed = ?,
-                        is_notifications_enabled = ?,
-                        updated_at = CURRENT_TIMESTAMP
+                        is_notifications_enabled = ?
                     WHERE telegram_id = ?
                     """, (
                         user.username,
@@ -181,8 +179,7 @@ class UserRepository(BaseRepository):
                     is_admin,
                     is_subscribed,
                     is_notifications_enabled,
-                    created_at,
-                    updated_at
+                    created_at
                 FROM users
                 WHERE telegram_id = ?
                 """, (telegram_id,)).fetchone()
@@ -201,7 +198,7 @@ class UserRepository(BaseRepository):
                     is_subscribed=bool(user_data['is_subscribed']),
                     is_notifications_enabled=bool(user_data['is_notifications_enabled']),
                     created_at=user_data['created_at'],
-                    updated_at=user_data['updated_at']
+                    updated_at=user_data['created_at']  # Используем created_at вместо updated_at
                 )
                 
         except Exception as e:
@@ -228,8 +225,7 @@ class UserRepository(BaseRepository):
                     is_admin,
                     is_subscribed,
                     is_notifications_enabled,
-                    created_at,
-                    updated_at
+                    created_at
                 FROM users
                 """).fetchall()
                 
@@ -246,7 +242,7 @@ class UserRepository(BaseRepository):
                         is_subscribed=bool(user_data['is_subscribed']),
                         is_notifications_enabled=bool(user_data['is_notifications_enabled']),
                         created_at=user_data['created_at'],
-                        updated_at=user_data['updated_at']
+                        updated_at=user_data['created_at']  # Используем created_at вместо updated_at
                     ))
                     
                 return users
@@ -280,8 +276,7 @@ class UserRepository(BaseRepository):
                     is_admin,
                     is_subscribed,
                     is_notifications_enabled,
-                    created_at,
-                    updated_at
+                    created_at
                 FROM users
                 WHERE 
                     is_notifications_enabled = 1
@@ -312,7 +307,7 @@ class UserRepository(BaseRepository):
                                 is_subscribed=bool(user_data['is_subscribed']),
                                 is_notifications_enabled=bool(user_data['is_notifications_enabled']),
                                 created_at=user_data['created_at'],
-                                updated_at=user_data['updated_at']
+                                updated_at=user_data['created_at']  # Используем created_at вместо updated_at
                             ))
                     except ValueError as ve:
                         logger.warning(f"Неверный формат даты рождения для пользователя {user_data['id']}: {str(ve)}")
@@ -404,8 +399,7 @@ class UserRepository(BaseRepository):
                     birth_date = ?,
                     is_admin = ?,
                     is_subscribed = ?,
-                    is_notifications_enabled = ?,
-                    updated_at = CURRENT_TIMESTAMP
+                    is_notifications_enabled = ?
                 WHERE telegram_id = ?
                 """, (
                     user.username,
@@ -452,8 +446,7 @@ class UserRepository(BaseRepository):
                 conn.execute("""
                 UPDATE users
                 SET 
-                    is_subscribed = ?,
-                    updated_at = CURRENT_TIMESTAMP
+                    is_subscribed = ?
                 WHERE telegram_id = ?
                 """, (is_subscribed, telegram_id))
                 
@@ -491,8 +484,7 @@ class UserRepository(BaseRepository):
                 conn.execute("""
                 UPDATE users
                 SET 
-                    is_notifications_enabled = ?,
-                    updated_at = CURRENT_TIMESTAMP
+                    is_notifications_enabled = ?
                 WHERE telegram_id = ?
                 """, (is_notifications_enabled, telegram_id))
                 
@@ -529,8 +521,7 @@ class UserRepository(BaseRepository):
                 conn.execute("""
                 UPDATE users
                 SET 
-                    is_admin = 1,
-                    updated_at = CURRENT_TIMESTAMP
+                    is_admin = 1
                 WHERE telegram_id = ?
                 """, (telegram_id,))
                 
@@ -567,8 +558,7 @@ class UserRepository(BaseRepository):
                 conn.execute("""
                 UPDATE users
                 SET 
-                    is_admin = 0,
-                    updated_at = CURRENT_TIMESTAMP
+                    is_admin = 0
                 WHERE telegram_id = ?
                 """, (telegram_id,))
                 
@@ -602,7 +592,7 @@ class UserRepository(BaseRepository):
             is_subscribed=bool(data.get('is_subscribed')),
             is_notifications_enabled=bool(data.get('is_notifications_enabled')),
             created_at=data.get('created_at'),
-            updated_at=data.get('updated_at')
+            updated_at=data.get('created_at')  # Используем created_at вместо updated_at
         )
     
     def to_db_dict(self, entity: User) -> Dict[str, Any]:
@@ -717,8 +707,7 @@ class UserRepository(BaseRepository):
                     is_admin,
                     is_subscribed,
                     is_notifications_enabled,
-                    created_at,
-                    updated_at
+                    created_at
                 FROM users
                 WHERE id = ?
                 """, (user_id,)).fetchone()
@@ -737,7 +726,7 @@ class UserRepository(BaseRepository):
                     is_subscribed=bool(user_data['is_subscribed']),
                     is_notifications_enabled=bool(user_data['is_notifications_enabled']),
                     created_at=user_data['created_at'],
-                    updated_at=user_data['updated_at'] if 'updated_at' in user_data else user_data['created_at']
+                    updated_at=user_data['created_at']  # Используем created_at вместо updated_at
                 )
                 
         except Exception as e:
@@ -767,8 +756,7 @@ class UserRepository(BaseRepository):
                     is_admin,
                     is_subscribed,
                     is_notifications_enabled,
-                    created_at,
-                    created_at as updated_at
+                    created_at
                 FROM users
                 WHERE username = ?
                 """, (username,)).fetchone()
@@ -787,7 +775,7 @@ class UserRepository(BaseRepository):
                     is_subscribed=bool(user_data['is_subscribed']),
                     is_notifications_enabled=bool(user_data['is_notifications_enabled']),
                     created_at=user_data['created_at'],
-                    updated_at=user_data['updated_at']
+                    updated_at=user_data['created_at']  # Используем created_at вместо updated_at
                 )
                 
         except Exception as e:
