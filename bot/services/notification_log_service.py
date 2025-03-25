@@ -12,6 +12,8 @@ from datetime import date, datetime, timedelta
 from bot.core.base_service import BaseService
 from bot.core.models import NotificationLog, User
 from bot.repositories.notification_log_repository import NotificationLogRepository
+from bot.repositories.user_repository import UserRepository
+from bot.repositories.template_repository import TemplateRepository
 
 logger = logging.getLogger(__name__)
 
@@ -24,15 +26,19 @@ class NotificationLogService(BaseService):
     используя NotificationLogRepository для доступа к данным.
     """
     
-    def __init__(self, log_repository: NotificationLogRepository):
+    def __init__(self, log_repository: NotificationLogRepository, user_repository: UserRepository = None, template_repository: TemplateRepository = None):
         """
         Инициализация сервиса журнала уведомлений.
         
         Args:
             log_repository: Репозиторий журнала уведомлений
+            user_repository: Репозиторий пользователей (опционально)
+            template_repository: Репозиторий шаблонов (опционально)
         """
         super().__init__()
         self.log_repository = log_repository
+        self.user_repository = user_repository
+        self.template_repository = template_repository
     
     def add_log(self, log: NotificationLog) -> Optional[int]:
         """
