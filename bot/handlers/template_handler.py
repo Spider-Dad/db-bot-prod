@@ -90,11 +90,11 @@ class TemplateHandler(BaseHandler):
             templates_text = f"{EMOJI['template']} <b>Список шаблонов уведомлений ({len(templates)}):</b>\n\n"
             
             for template in templates:
-                template_id = template.get('id')
-                name = template.get('name', '')
-                category = template.get('category', '')
-                text = template.get('text', '')
-                is_active = template.get('is_active', True)
+                template_id = template.id
+                name = template.name
+                category = template.category
+                text = template.template
+                is_active = template.is_active
                 
                 # Ограничиваем длину текста для отображения
                 if len(text) > 50:
@@ -249,7 +249,7 @@ class TemplateHandler(BaseHandler):
                 return
             
             # Обновляем шаблон
-            template['text'] = new_text
+            template.template = new_text
             result = self.template_service.update_template(template)
             
             if result:
@@ -367,15 +367,15 @@ class TemplateHandler(BaseHandler):
             
             # Форматируем шаблон с примером данных
             try:
-                formatted_text = self.template_service.format_template(template.get('text', ''), sample_data)
+                formatted_text = self.template_service.format_template(template, sample_data)
                 
                 # Отправляем предпросмотр
                 preview_text = (
                     f"{EMOJI['template']} <b>Предпросмотр шаблона:</b>\n"
                     f"ID: {template_id}\n"
-                    f"Название: {template.get('name', '')}\n"
-                    f"Категория: {template.get('category', '')}\n\n"
-                    f"<b>Текст шаблона:</b>\n<code>{template.get('text', '')}</code>\n\n"
+                    f"Название: {template.name}\n"
+                    f"Категория: {template.category}\n\n"
+                    f"<b>Текст шаблона:</b>\n<code>{template.template}</code>\n\n"
                     f"<b>С примером данных:</b>\n{formatted_text}"
                 )
                 
@@ -440,15 +440,15 @@ class TemplateHandler(BaseHandler):
             
             # Формируем данные для шаблона
             template_data = {
-                'name': user.get('name', 'Пользователь'),
-                'username': user.get('username', ''),
+                'name': f"{user.first_name} {user.last_name}".strip() if user.last_name else user.first_name,
+                'username': user.username or '',
                 'date': datetime.now().strftime('%d.%m.%Y'),
                 'days_until': 0
             }
             
             # Форматируем шаблон
             try:
-                formatted_text = self.template_service.format_template(template.get('text', ''), template_data)
+                formatted_text = self.template_service.format_template(template, template_data)
                 
                 # Отправляем тестовое сообщение пользователю
                 try:
@@ -513,7 +513,7 @@ class TemplateHandler(BaseHandler):
                 return
             
             # Если шаблон уже активен, сообщаем об этом
-            if template.get('is_active', False):
+            if template.is_active:
                 self.send_message(
                     message.chat.id,
                     f"{EMOJI['info']} Шаблон с ID {template_id} уже активен."
@@ -575,7 +575,7 @@ class TemplateHandler(BaseHandler):
                 return
             
             # Если шаблон уже неактивен, сообщаем об этом
-            if not template.get('is_active', True):
+            if not template.is_active:
                 self.send_message(
                     message.chat.id,
                     f"{EMOJI['info']} Шаблон с ID {template_id} уже неактивен."

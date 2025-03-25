@@ -124,10 +124,10 @@ class UserHandler(BaseHandler):
             birthdays_text = f"{EMOJI['gift']} <b>Ближайшие дни рождения:</b>\n\n"
             
             for user in upcoming_birthdays:
-                user_id = user.get('telegram_id')
-                name = user.get('name', 'Пользователь')
-                birthday = user.get('birthday')
-                days_until = user.get('days_until', 0)
+                user_id = user.telegram_id
+                name = f"{user.first_name} {user.last_name}".strip() if user.last_name else user.first_name
+                birth_date = user.birth_date
+                days_until = getattr(user, 'days_until', 0)  # Используем getattr для дополнительного поля days_until
                 
                 # Формируем строку с датой и именем
                 if days_until == 0:
@@ -138,7 +138,7 @@ class UserHandler(BaseHandler):
                     birthday_text = f"{EMOJI['clock']} <b>Завтра</b> - {name}"
                 else:
                     # День рождения в ближайшие дни
-                    birthday_date = datetime.strptime(birthday, '%Y-%m-%d').date()
+                    birthday_date = datetime.strptime(birth_date, '%Y-%m-%d').date()
                     birthday_text = f"{EMOJI['calendar']} <b>{birthday_date.strftime('%d.%m')}</b> ({days_until} дн.) - {name}"
                 
                 birthdays_text += f"{birthday_text}\n"
@@ -265,13 +265,13 @@ class UserHandler(BaseHandler):
             users_text = f"{EMOJI['users']} <b>Справочник пользователей ({len(users)}):</b>\n\n"
             
             for user in users:
-                user_id = user.get('telegram_id')
-                username = user.get('username', '')
-                name = user.get('name', 'Пользователь')
-                last_name = user.get('last_name', '')
-                birthday = user.get('birthday')
-                is_admin = user.get('is_admin', False)
-                notifications_enabled = user.get('notifications_enabled', True)
+                user_id = user.telegram_id
+                username = user.username
+                name = f"{user.first_name} {user.last_name}".strip() if user.last_name else user.first_name
+                last_name = user.last_name
+                birthday = user.birth_date
+                is_admin = user.is_admin
+                notifications_enabled = user.notifications_enabled
                 
                 # Форматируем дату рождения
                 birthday_str = "Не указан"
@@ -338,7 +338,7 @@ class UserHandler(BaseHandler):
                 return
             
             # Удаляем пользователя
-            user_id = user.get('telegram_id')
+            user_id = user.telegram_id
             result = self.user_service.delete_user(user_id)
             
             if result:
@@ -395,7 +395,7 @@ class UserHandler(BaseHandler):
                 return
             
             # Проверяем, уже является ли пользователь администратором
-            if user.get('is_admin', False):
+            if user.is_admin:
                 self.send_message(
                     message.chat.id,
                     f"{EMOJI['info']} Пользователь @{username} уже является администратором."
@@ -403,7 +403,7 @@ class UserHandler(BaseHandler):
                 return
             
             # Назначаем пользователя администратором
-            user_id = user.get('telegram_id')
+            user_id = user.telegram_id
             result = self.user_service.set_admin_status(user_id, True)
             
             if result:
@@ -460,7 +460,7 @@ class UserHandler(BaseHandler):
                 return
             
             # Проверяем, является ли пользователь администратором
-            if not user.get('is_admin', False):
+            if not user.is_admin:
                 self.send_message(
                     message.chat.id,
                     f"{EMOJI['info']} Пользователь @{username} не является администратором."
@@ -468,7 +468,7 @@ class UserHandler(BaseHandler):
                 return
             
             # Отзываем права администратора
-            user_id = user.get('telegram_id')
+            user_id = user.telegram_id
             result = self.user_service.set_admin_status(user_id, False)
             
             if result:
@@ -525,8 +525,8 @@ class UserHandler(BaseHandler):
                 return
             
             # Получаем текущий статус уведомлений
-            user_id = user.get('telegram_id')
-            current_status = user.get('notifications_enabled', True)
+            user_id = user.telegram_id
+            current_status = user.notifications_enabled
             
             # Инвертируем статус
             new_status = not current_status

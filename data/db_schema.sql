@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS notification_logs (
     sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     status TEXT NOT NULL,
     error_message TEXT,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
@@ -39,5 +40,20 @@ CREATE TABLE IF NOT EXISTS notification_settings (
     time TEXT NOT NULL,
     is_active BOOLEAN DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (template_id) REFERENCES notification_templates(id)
 );
+
+CREATE TABLE IF NOT EXISTS system_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT,
+    description TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT OR IGNORE INTO system_settings (key, value, description) 
+VALUES ('payment_phone', '7 920 132 2534', 'Номер телефона для перевода');
+
+INSERT OR IGNORE INTO system_settings (key, value, description) 
+VALUES ('payment_name', 'Диана Ибрагимовна Рыжова', 'ФИО получателя платежа');
