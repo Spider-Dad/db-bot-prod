@@ -214,6 +214,47 @@ class UserService(BaseService):
         admin_users = [user for user in self.get_all_users() if user.is_admin]
         return [user.telegram_id for user in admin_users]
     
+    def get_all_users_with_birthdays(self) -> List[Dict[str, Any]]:
+        """
+        Получение всех пользователей с днями рождения, сгруппированных по месяцам.
+        
+        Returns:
+            Список словарей с информацией о пользователях и их днях рождения,
+            отсортированный по месяцам и дням
+        """
+        try:
+            # Получаем всех пользователей
+            users = self.user_repository.get_all_users()
+            
+            # Фильтруем пользователей, у которых указана дата рождения
+            users_with_birthdays = [user for user in users if user.birth_date]
+            
+            # Преобразуем в формат, удобный для отображения
+            birthdays_list = []
+            
+            for user in users_with_birthdays:
+                try:
+                    birth_date_obj = datetime.strptime(user.birth_date, "%Y-%m-%d").date()
+                    
+                    birthdays_list.append({
+                        'first_name': user.first_name,
+                        'last_name': user.last_name,
+                        'birth_date': user.birth_date,
+                        'month': birth_date_obj.month,
+                        'day': birth_date_obj.day
+                    })
+                except ValueError as ve:
+                    logger.warning(f"Неверный формат даты рождения для пользователя {user.id}: {str(ve)}")
+            
+            # Сортируем по месяцам и дням
+            birthdays_list.sort(key=lambda x: (x['month'], x['day']))
+            
+            return birthdays_list
+        
+        except Exception as e:
+            logger.error(f"Ошибка получения всех пользователей с днями рождения: {str(e)}")
+            return []
+    
     def execute(self, *args, **kwargs) -> Any:
         """
         Выполнение основной бизнес-логики сервиса.

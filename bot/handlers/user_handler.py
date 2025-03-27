@@ -120,50 +120,45 @@ class UserHandler(BaseHandler):
             message: Сообщение от пользователя
         """
         try:
-            # Получаем пользователей с ближайшими днями рождения (30 дней)
-            birthday_info = self.user_service.get_users_with_upcoming_birthdays(30)
+            # Получаем всех пользователей с днями рождения
+            birthdays_list = self.user_service.get_all_users_with_birthdays()
             
-            if not birthday_info:
+            if not birthdays_list:
                 self.send_message(
                     message.chat.id,
-                    f"{EMOJI['info']} В ближайшие 30 дней нет дней рождения."
+                    f"{EMOJI['info']} В базе данных нет дней рождения."
                 )
                 return
             
-            # Формируем сообщение со списком дней рождения
-            birthdays_text = f"{EMOJI['gift']} <b>Ближайшие дни рождения:</b>\n\n"
+            # Формируем сообщение со списком дней рождений, сгруппированным по месяцам
+            birthdays_text = f"👥 <b>Управление пользователями...</b>\n\n📋 Список дней рождения:\n\n"
             
-            for info in birthday_info:
-                user = info.get("user")
-                days_until = info.get("days_until", 0)
+            current_month = None
+            
+            for birthday in birthdays_list:
+                month_num = birthday.get('month')
                 
-                if not user:
-                    continue
-                    
-                name = f"{user.first_name} {user.last_name}".strip() if user.last_name else user.first_name
+                # Если начался новый месяц, добавляем его заголовок
+                if month_num != current_month:
+                    if current_month is not None:
+                        birthdays_text += "\n"  # Добавляем перенос строки между месяцами
+                    current_month = month_num
+                    birthdays_text += f"📅 <b>{MONTHS_RU[month_num]['nom']}:</b>\n"
                 
-                # Формируем строку с датой и именем
-                if days_until == 0:
-                    # День рождения сегодня
-                    birthday_text = f"{EMOJI['party']} <b>СЕГОДНЯ!</b> {name}"
-                elif days_until == 1:
-                    # День рождения завтра
-                    birthday_text = f"{EMOJI['clock']} <b>Завтра</b> - {name}"
-                else:
-                    # День рождения в ближайшие дни
-                    if user.birth_date:
-                        try:
-                            birthday_date = datetime.strptime(user.birth_date, '%Y-%m-%d').date()
-                            birthday_text = f"{EMOJI['calendar']} <b>{birthday_date.strftime('%d.%m')}</b> ({days_until} дн.) - {name}"
-                        except ValueError:
-                            birthday_text = f"{EMOJI['calendar']} <b>через {days_until} дн.</b> - {name}"
-                    else:
-                        birthday_text = f"{EMOJI['calendar']} <b>через {days_until} дн.</b> - {name}"
+                # Форматируем имя пользователя
+                first_name = birthday.get('first_name', '')
+                last_name = birthday.get('last_name', '')
+                name = f"{first_name} {last_name}".strip() if last_name else first_name
                 
-                birthdays_text += f"{birthday_text}\n"
+                # Форматируем дату рождения
+                birth_date = datetime.strptime(birthday.get('birth_date'), '%Y-%m-%d').date()
+                date_str = f"{birth_date.day:02d} {MONTHS_RU[month_num]['gen']}"
+                
+                # Добавляем строку с днем рождения
+                birthdays_text += f"👤 {name} - {date_str}\n"
             
             self.send_message(message.chat.id, birthdays_text)
-            logger.info(f"Отправлен список дней рождения пользователю {message.from_user.id}")
+            logger.info(f"Отправлен полный список дней рождения пользователю {message.from_user.id}")
             
         except Exception as e:
             logger.error(f"Ошибка при получении списка дней рождения: {str(e)}")
@@ -620,43 +615,38 @@ class UserHandler(BaseHandler):
             call: Callback-запрос от кнопки
         """
         try:
-            # Получаем пользователей с ближайшими днями рождения (30 дней)
-            birthday_info = self.user_service.get_users_with_upcoming_birthdays(30)
+            # Получаем всех пользователей с днями рождения
+            birthdays_list = self.user_service.get_all_users_with_birthdays()
             
-            if not birthday_info:
-                text = f"{EMOJI['info']} В ближайшие 30 дней нет дней рождения."
+            if not birthdays_list:
+                text = f"{EMOJI['info']} В базе данных нет дней рождения."
             else:
-                # Формируем сообщение со списком дней рождения
-                text = f"{EMOJI['gift']} <b>Ближайшие дни рождения:</b>\n\n"
+                # Формируем сообщение со списком дней рождений, сгруппированным по месяцам
+                text = f"👥 <b>Управление пользователями...</b>\n\n📋 Список дней рождения:\n\n"
                 
-                for info in birthday_info:
-                    user = info.get("user")
-                    days_until = info.get("days_until", 0)
+                current_month = None
+                
+                for birthday in birthdays_list:
+                    month_num = birthday.get('month')
                     
-                    if not user:
-                        continue
-                        
-                    name = f"{user.first_name} {user.last_name}".strip() if user.last_name else user.first_name
+                    # Если начался новый месяц, добавляем его заголовок
+                    if month_num != current_month:
+                        if current_month is not None:
+                            text += "\n"  # Добавляем перенос строки между месяцами
+                        current_month = month_num
+                        text += f"📅 <b>{MONTHS_RU[month_num]['nom']}:</b>\n"
                     
-                    # Формируем строку с датой и именем
-                    if days_until == 0:
-                        # День рождения сегодня
-                        birthday_text = f"{EMOJI['party']} <b>СЕГОДНЯ!</b> {name}"
-                    elif days_until == 1:
-                        # День рождения завтра
-                        birthday_text = f"{EMOJI['clock']} <b>Завтра</b> - {name}"
-                    else:
-                        # День рождения в ближайшие дни
-                        if user.birth_date:
-                            try:
-                                birthday_date = datetime.strptime(user.birth_date, '%Y-%m-%d').date()
-                                birthday_text = f"{EMOJI['calendar']} <b>{birthday_date.strftime('%d.%m')}</b> ({days_until} дн.) - {name}"
-                            except ValueError:
-                                birthday_text = f"{EMOJI['calendar']} <b>через {days_until} дн.</b> - {name}"
-                        else:
-                            birthday_text = f"{EMOJI['calendar']} <b>через {days_until} дн.</b> - {name}"
+                    # Форматируем имя пользователя
+                    first_name = birthday.get('first_name', '')
+                    last_name = birthday.get('last_name', '')
+                    name = f"{first_name} {last_name}".strip() if last_name else first_name
                     
-                    text += f"{birthday_text}\n"
+                    # Форматируем дату рождения
+                    birth_date = datetime.strptime(birthday.get('birth_date'), '%Y-%m-%d').date()
+                    date_str = f"{birth_date.day:02d} {MONTHS_RU[month_num]['gen']}"
+                    
+                    # Добавляем строку с днем рождения
+                    text += f"👤 {name} - {date_str}\n"
             
             # Создаем клавиатуру с кнопкой "Назад"
             keyboard = types.InlineKeyboardMarkup()
