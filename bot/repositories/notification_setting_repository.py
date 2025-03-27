@@ -283,6 +283,28 @@ class NotificationSettingRepository(BaseRepository):
         """
         try:
             with self._db_manager.get_connection() as conn:
+                # Сначала проверим количество настроек в таблице
+                count_query = "SELECT COUNT(*) as count FROM notification_settings"
+                if active_only:
+                    count_query += " WHERE is_active = 1"
+                
+                count_result = conn.execute(count_query).fetchone()
+                settings_count = count_result['count'] if count_result else 0
+                
+                logger.info(f"Количество настроек в базе: {settings_count}")
+                
+                # Теперь проверим количество шаблонов в таблице
+                template_count_query = "SELECT COUNT(*) as count FROM notification_templates"
+                if active_only:
+                    template_count_query += " WHERE is_active = 1"
+                
+                template_count_result = conn.execute(template_count_query).fetchone()
+                templates_count = template_count_result['count'] if template_count_result else 0
+                
+                logger.info(f"Количество шаблонов в базе: {templates_count}")
+                
+                # Используем LEFT JOIN вместо JOIN, чтобы получить все настройки,
+                # даже если для них нет шаблонов
                 query = """
                 SELECT 
                     s.id as setting_id,
@@ -299,42 +321,59 @@ class NotificationSettingRepository(BaseRepository):
                     t.created_at as template_created_at,
                     t.updated_at as template_updated_at
                 FROM notification_settings s
-                JOIN notification_templates t ON s.template_id = t.id
+                LEFT JOIN notification_templates t ON s.template_id = t.id
                 """
                 
                 if active_only:
-                    query += " WHERE s.is_active = 1 AND t.is_active = 1"
+                    query += " WHERE s.is_active = 1"
+                    if templates_count > 0:  # Добавляем условие для шаблонов только если они есть
+                        query += " AND (t.is_active = 1 OR t.is_active IS NULL)"
                     
-                query += " ORDER BY s.days_before, s.time, t.category, t.name"
+                query += " ORDER BY s.days_before, s.time"
                 
                 results = conn.execute(query).fetchall()
+                logger.info(f"Найдено {len(results)} настроек с шаблонами")
                 
                 settings_with_templates = []
                 for row in results:
-                    template = NotificationTemplate(
-                        id=row['template_id'],
-                        name=row['template_name'],
-                        template=row['template'],
-                        category=row['category'],
-                        is_active=bool(row['template_is_active']),
-                        created_at=row['template_created_at'],
-                        updated_at=row['template_updated_at']
-                    )
+                    # Создаем шаблон, если он найден, или используем заглушку
+                    template = None
+                    if row['template_id'] is not None:
+                        template = NotificationTemplate(
+                            id=row['template_id'] or 0,
+                            name=row['template_name'] or 'Неизвестный шаблон',
+                            template=row['template'] or '',
+                            category=row['category'] or 'unknown',
+                            is_active=bool(row['template_is_active']) if row['template_is_active'] is not None else False,
+                            created_at=row['template_created_at'] or datetime.now(),
+                            updated_at=row['template_updated_at'] or datetime.now()
+                        )
+                    else:
+                        template = NotificationTemplate(
+                            id=0,
+                            name='Неизвестный шаблон',
+                            template='',
+                            category='unknown',
+                            is_active=False,
+                            created_at=datetime.now(),
+                            updated_at=datetime.now()
+                        )
                     
                     setting = NotificationSetting(
                         id=row['setting_id'],
-                        template_id=row['template_id'],
-                        days_before=row['days_before'],
-                        time=row['time'],
+                        template_id=row['template_id'] or 0,
+                        days_before=row['days_before'] or 0,
+                        time=row['time'] or '12:00',
                         is_active=bool(row['setting_is_active']),
-                        created_at=row['setting_created_at']
+                        created_at=row['setting_created_at'] or datetime.now()
                     )
                     
                     settings_with_templates.append({
                         'setting': setting,
                         'template': template
                     })
-                    
+                
+                logger.info(f"Возвращается {len(settings_with_templates)} настроек с шаблонами")
                 return settings_with_templates
                 
         except Exception as e:

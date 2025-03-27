@@ -89,13 +89,17 @@ class NotificationSettingHandler(BaseHandler):
             # Формируем сообщение со списком настроек
             settings_text = f"{EMOJI['setting']} <b>Список настроек уведомлений ({len(settings)}):</b>\n\n"
             
-            for setting in settings:
-                setting_id = setting.get('id')
-                template_id = setting.get('template_id')
-                template_name = setting.get('template_name', 'Неизвестный шаблон')
-                days_before = setting.get('days_before', 0)
-                time_str = setting.get('time', '12:00')
-                is_active = setting.get('is_active', True)
+            for setting_item in settings:
+                # Получаем объекты настройки и шаблона
+                setting = setting_item['setting']  # Объект NotificationSetting
+                template = setting_item['template']  # Объект NotificationTemplate
+                
+                setting_id = setting.id
+                template_id = template.id
+                template_name = template.name or 'Неизвестный шаблон'
+                days_before = setting.days_before
+                time_str = setting.time
+                is_active = setting.is_active
                 
                 status_emoji = EMOJI['active'] if is_active else EMOJI['inactive']
                 
@@ -704,13 +708,17 @@ class NotificationSettingHandler(BaseHandler):
                 # Формируем сообщение со списком настроек
                 text = f"{EMOJI['setting']} <b>Список настроек уведомлений ({len(settings)}):</b>\n\n"
                 
-                for setting in settings:
-                    setting_id = setting.get('id')
-                    template_id = setting.get('template_id')
-                    template_name = setting.get('template_name', 'Неизвестный шаблон')
-                    days_before = setting.get('days_before', 0)
-                    time_str = setting.get('time', '12:00')
-                    is_active = setting.get('is_active', True)
+                for setting_item in settings:
+                    # Получаем объекты настройки и шаблона
+                    setting = setting_item['setting']  # Объект NotificationSetting
+                    template = setting_item['template']  # Объект NotificationTemplate
+                    
+                    setting_id = setting.id
+                    template_id = template.id
+                    template_name = template.name or 'Неизвестный шаблон'
+                    days_before = setting.days_before
+                    time_str = setting.time
+                    is_active = setting.is_active
                     
                     status_emoji = EMOJI['active'] if is_active else EMOJI['inactive']
                     
