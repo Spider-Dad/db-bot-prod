@@ -29,7 +29,7 @@ class TemplateHandler(BaseHandler):
     шаблонов уведомлений.
     """
     
-    def __init__(self, bot: telebot.TeleBot, template_service: TemplateService, user_service: UserService):
+    def __init__(self, bot: telebot.TeleBot, template_service: TemplateService, user_service: UserService, setting_service):
         """
         Инициализация обработчика шаблонов уведомлений.
         
@@ -37,10 +37,12 @@ class TemplateHandler(BaseHandler):
             bot: Экземпляр бота Telegram
             template_service: Сервис для работы с шаблонами уведомлений
             user_service: Сервис для работы с пользователями
+            setting_service: Сервис для работы с настройками уведомлений
         """
         super().__init__(bot)
         self.template_service = template_service
         self.user_service = user_service
+        self.setting_service = setting_service
         
     def register_handlers(self) -> None:
         """
@@ -90,31 +92,61 @@ class TemplateHandler(BaseHandler):
                 )
                 return
             
-            # Формируем сообщение со списком шаблонов
-            templates_text = f"{EMOJI['template']} <b>Список шаблонов уведомлений ({len(templates)}):</b>\n\n"
-            
+            # Для каждого шаблона отправляем отдельное сообщение с полной информацией
             for template in templates:
                 template_id = template.id
                 name = template.name
                 category = template.category
                 text = template.template
                 is_active = template.is_active
+                created_at = template.created_at
                 
-                # Ограничиваем длину текста для отображения
-                if len(text) > 50:
-                    text = text[:50] + "..."
+                # Форматируем дату создания
+                try:
+                    if isinstance(created_at, str):
+                        created_at_obj = datetime.strptime(created_at, "%Y-%m-%d %H:%M:%S")
+                        created_at_str = created_at_obj.strftime("%Y-%m-%d %H:%M:%S")
+                    else:
+                        created_at_str = created_at.strftime("%Y-%m-%d %H:%M:%S")
+                except:
+                    created_at_str = str(created_at)
                 
-                status_emoji = EMOJI['active'] if is_active else EMOJI['inactive']
+                # Статус шаблона
+                status_emoji = "✅" if is_active else "❌"
+                status_text = "Активен" if is_active else "Неактивен"
                 
-                template_text = (
-                    f"{status_emoji} <b>ID {template_id}: {name}</b>\n"
-                    f"Категория: {category}\n"
-                    f"Текст: <code>{text}</code>\n\n"
-                )
+                # Получаем настройки уведомлений для данного шаблона, если есть
+                notification_settings = self.setting_service.get_settings_by_template_id(template_id)
                 
-                templates_text += template_text
+                # Формируем сообщение с полной информацией о шаблоне
+                template_text = f"📋 <b>Шаблон #{template_id}</b>\n"
+                template_text += f"📝 <b>Название:</b> {name}\n"
+                template_text += f"🔣 <b>Текст:</b>\n\n{text}\n\n"
+                template_text += f"📂 <b>Категория:</b> {category}\n"
+                template_text += f"🕒 <b>Создан:</b> {created_at_str}\n"
+                template_text += f"📊 <b>Статус:</b> {status_emoji} {status_text}\n"
+                
+                # Если есть настройки уведомлений, добавляем их
+                if notification_settings:
+                    template_text += f"\n📅 <b>Настройки уведомлений:</b>\n"
+                    for setting in notification_settings:
+                        days_before = setting.days_before
+                        time = setting.time
+                        is_setting_active = setting.is_active
+                        setting_status = "✅" if is_setting_active else "❌"
+                        
+                        if days_before == 0:
+                            days_text = "В день события"
+                        elif days_before == 1:
+                            days_text = "За 1 день"
+                        else:
+                            days_text = f"За {days_before} дней"
+                        
+                        template_text += f"⏰ {setting_status} {days_text} в {time}\n"
+                
+                # Отправляем сообщение с информацией о шаблоне
+                self.send_message(message.chat.id, template_text)
             
-            self.send_message(message.chat.id, templates_text)
             logger.info(f"Отправлен список шаблонов администратору {message.from_user.id}")
             
         except Exception as e:
@@ -769,7 +801,7 @@ class TemplateHandler(BaseHandler):
     @log_errors
     def cmd_templates_list_callback(self, call: types.CallbackQuery) -> None:
         """
-        Обработчик callback-запроса для команды templates_list.
+        Обработчик callback-запроса для получения списка шаблонов.
         
         Args:
             call: Callback-запрос от кнопки
@@ -785,32 +817,29 @@ class TemplateHandler(BaseHandler):
             
             if not templates:
                 text = f"{EMOJI['info']} В системе нет шаблонов уведомлений."
-            else:
-                # Формируем сообщение со списком шаблонов
-                text = f"{EMOJI['template']} <b>Список шаблонов уведомлений ({len(templates)}):</b>\n\n"
                 
-                for template in templates:
-                    template_id = template.id
-                    name = template.name
-                    category = template.category
-                    template_text = template.template
-                    is_active = template.is_active
-                    
-                    # Ограничиваем длину текста для отображения
-                    if len(template_text) > 50:
-                        template_text = template_text[:50] + "..."
-                    
-                    status_emoji = EMOJI['active'] if is_active else EMOJI['inactive']
-                    
-                    template_info = (
-                        f"{status_emoji} <b>ID {template_id}: {name}</b>\n"
-                        f"Категория: {category}\n"
-                        f"Текст: <code>{template_text}</code>\n\n"
-                    )
-                    
-                    text += template_info
+                # Создаем клавиатуру с кнопкой "Назад"
+                keyboard = types.InlineKeyboardMarkup()
+                back_btn = types.InlineKeyboardButton(
+                    text=f"{EMOJI['back']} Назад", 
+                    callback_data="menu_templates"
+                )
+                keyboard.add(back_btn)
+                
+                # Обновляем сообщение
+                self.bot.edit_message_text(
+                    chat_id=call.message.chat.id,
+                    message_id=call.message.message_id,
+                    text=text,
+                    reply_markup=keyboard,
+                    parse_mode='HTML'
+                )
+                return
             
-            # Создаем клавиатуру с кнопкой "Назад"
+            # Отвечаем на callback-запрос
+            self.answer_callback_query(call.id, "Получение списка шаблонов")
+            
+            # Создаем клавиатуру с кнопкой "Назад" для последнего шаблона
             keyboard = types.InlineKeyboardMarkup()
             back_btn = types.InlineKeyboardButton(
                 text=f"{EMOJI['back']} Назад", 
@@ -818,21 +847,112 @@ class TemplateHandler(BaseHandler):
             )
             keyboard.add(back_btn)
             
-            # Обновляем сообщение
-            self.bot.edit_message_text(
-                chat_id=call.message.chat.id,
-                message_id=call.message.message_id,
-                text=text,
-                reply_markup=keyboard,
-                parse_mode='HTML'
-            )
+            # Если у нас только один шаблон, показываем его с кнопкой "Назад"
+            if len(templates) == 1:
+                template = templates[0]
+                template_text = self._format_template_info(template)
+                
+                # Редактируем текущее сообщение с первым шаблоном и кнопкой "Назад"
+                self.bot.edit_message_text(
+                    chat_id=call.message.chat.id,
+                    message_id=call.message.message_id,
+                    text=template_text,
+                    reply_markup=keyboard,
+                    parse_mode='HTML'
+                )
+            else:
+                # Редактируем текущее сообщение с первым шаблоном БЕЗ кнопки "Назад"
+                first_template = templates[0]
+                first_template_text = self._format_template_info(first_template)
+                
+                self.bot.edit_message_text(
+                    chat_id=call.message.chat.id,
+                    message_id=call.message.message_id,
+                    text=first_template_text,
+                    parse_mode='HTML'  # Без кнопки "Назад"
+                )
+                
+                # Отправляем промежуточные шаблоны без кнопки
+                for template in templates[1:-1]:
+                    template_text = self._format_template_info(template)
+                    self.send_message(call.message.chat.id, template_text)
+                
+                # Отправляем последний шаблон с кнопкой "Назад"
+                last_template = templates[-1]
+                last_template_text = self._format_template_info(last_template)
+                self.send_message(
+                    call.message.chat.id, 
+                    last_template_text, 
+                    reply_markup=keyboard
+                )
             
-            # Отвечаем на callback-запрос
-            self.answer_callback_query(call.id)
+            logger.info(f"Отправлен список шаблонов администратору {call.from_user.id}")
             
         except Exception as e:
-            logger.error(f"Ошибка в обработчике callback-запроса cmd_templates_list: {str(e)}")
+            logger.error(f"Ошибка при получении списка шаблонов: {str(e)}")
             self.answer_callback_query(call.id, f"Ошибка: {str(e)}", show_alert=True)
+    
+    def _format_template_info(self, template) -> str:
+        """
+        Форматирует информацию о шаблоне для отображения.
+        
+        Args:
+            template: Объект шаблона
+            
+        Returns:
+            Отформатированная строка с информацией о шаблоне
+        """
+        template_id = template.id
+        name = template.name
+        category = template.category
+        text = template.template
+        is_active = template.is_active
+        created_at = template.created_at
+        
+        # Форматируем дату создания
+        try:
+            if isinstance(created_at, str):
+                created_at_obj = datetime.strptime(created_at, "%Y-%m-%d %H:%M:%S")
+                created_at_str = created_at_obj.strftime("%Y-%m-%d %H:%M:%S")
+            else:
+                created_at_str = created_at.strftime("%Y-%m-%d %H:%M:%S")
+        except:
+            created_at_str = str(created_at)
+        
+        # Статус шаблона
+        status_emoji = "✅" if is_active else "❌"
+        status_text = "Активен" if is_active else "Неактивен"
+        
+        # Получаем настройки уведомлений для данного шаблона, если есть
+        notification_settings = self.setting_service.get_settings_by_template_id(template_id)
+        
+        # Формируем сообщение с полной информацией о шаблоне
+        template_text = f"📋 <b>Шаблон #{template_id}</b>\n"
+        template_text += f"📝 <b>Название:</b> {name}\n"
+        template_text += f"🔣 <b>Текст:</b>\n\n{text}\n\n"
+        template_text += f"📂 <b>Категория:</b> {category}\n"
+        template_text += f"🕒 <b>Создан:</b> {created_at_str}\n"
+        template_text += f"📊 <b>Статус:</b> {status_emoji} {status_text}\n"
+        
+        # Если есть настройки уведомлений, добавляем их
+        if notification_settings:
+            template_text += f"\n📅 <b>Настройки уведомлений:</b>\n"
+            for setting in notification_settings:
+                days_before = setting.days_before
+                time = setting.time
+                is_setting_active = setting.is_active
+                setting_status = "✅" if is_setting_active else "❌"
+                
+                if days_before == 0:
+                    days_text = "В день события"
+                elif days_before == 1:
+                    days_text = "За 1 день"
+                else:
+                    days_text = f"За {days_before} дней"
+                
+                template_text += f"⏰ {setting_status} {days_text} в {time}\n"
+        
+        return template_text
     
     @log_errors
     def cmd_update_template_callback(self, call: types.CallbackQuery) -> None:

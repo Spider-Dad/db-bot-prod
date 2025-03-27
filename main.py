@@ -96,7 +96,7 @@ def main():
         logger.info("Конфигурация обработчиков...")
         handlers = [
             UserHandler(bot, user_service),
-            TemplateHandler(bot, template_service, user_service),
+            TemplateHandler(bot, template_service, user_service, setting_service),
             NotificationSettingHandler(bot, setting_service, template_service),
             NotificationLogHandler(bot, log_service),
             BackupHandler(bot, backup_service),
