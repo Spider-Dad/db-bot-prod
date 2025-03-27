@@ -151,8 +151,8 @@ class UserHandler(BaseHandler):
                 name = f"{first_name} {last_name}".strip() if last_name else first_name
                 
                 # Форматируем дату рождения
-                birth_date = datetime.strptime(birthday.get('birth_date'), '%Y-%m-%d').date()
-                date_str = f"{birth_date.day:02d} {MONTHS_RU[month_num]['gen']}"
+                birth_date_obj = datetime.strptime(birthday.get('birth_date'), '%Y-%m-%d').date()
+                date_str = f"{birth_date_obj.day:02d} {MONTHS_RU[month_num]['gen']}"
                 
                 # Добавляем строку с днем рождения
                 birthdays_text += f"👤 {name} - {date_str}\n"
@@ -275,41 +275,68 @@ class UserHandler(BaseHandler):
                 )
                 return
             
-            # Формируем сообщение со списком пользователей
-            users_text = f"{EMOJI['user']} <b>Справочник пользователей ({len(users)}):</b>\n\n"
+            # Разделяем пользователей на администраторов и обычных пользователей
+            admins = [user for user in users if user.is_admin]
+            regular_users = [user for user in users if not user.is_admin]
             
-            for user in users:
-                user_id = user.telegram_id
-                username = user.username or "Нет имени пользователя"
-                first_name = user.first_name or ""
-                last_name = user.last_name or ""
-                name = f"{first_name} {last_name}".strip() or "Имя не указано"
-                birthday = user.birth_date
-                is_admin = user.is_admin
-                notifications_enabled = user.is_notifications_enabled
+            # Формируем сообщение со списком пользователей
+            users_text = f"{EMOJI['directory']} <b>Справочник пользователей</b>\n\n"
+            
+            # Добавляем администраторов
+            if admins:
+                users_text += f"👑 <b>Администраторы:</b>\n\n"
                 
-                # Форматируем дату рождения
-                birthday_str = "Не указан"
-                if birthday:
-                    try:
-                        birth_date = datetime.strptime(birthday, '%Y-%m-%d')
-                        birthday_str = birth_date.strftime('%d.%m.%Y')
-                    except ValueError:
-                        birthday_str = birthday
+                for admin in admins:
+                    # Имя и фамилия
+                    name = f"{admin.first_name} {admin.last_name}".strip() if admin.last_name else admin.first_name
+                    
+                    # Логин
+                    username = f"@{admin.username}" if admin.username else ""
+                    
+                    # Полная дата рождения
+                    birth_date = ""
+                    if admin.birth_date:
+                        try:
+                            birth_date_obj = datetime.strptime(admin.birth_date, '%Y-%m-%d').date()
+                            birth_date = f"{birth_date_obj.strftime('%d.%m.%Y')}"
+                        except ValueError:
+                            birth_date = f"{admin.birth_date}"
+                    
+                    # Формируем строку с информацией о пользователе
+                    users_text += f"👤 <b>{name}</b>\n"
+                    users_text += f"• {username}\n" if username else ""
+                    users_text += f"• {birth_date}\n" if birth_date else ""
+                    users_text += f"• Подписка: {'✅' if admin.is_subscribed else '❌'}\n"
+                    users_text += f"• Рассылка: {'✅' if admin.is_notifications_enabled else '❌'}\n"
+                    users_text += f"• Telegram ID: {admin.telegram_id}\n\n"
+            
+            # Добавляем обычных пользователей
+            if regular_users:
+                users_text += f"👥 <b>Пользователи:</b>\n\n"
                 
-                # Иконки для статусов
-                admin_status = f"{EMOJI['admin']} Администратор" if is_admin else ""
-                notify_status = EMOJI['active'] if notifications_enabled else EMOJI['inactive']
-                
-                # Формируем строку с информацией о пользователе
-                user_text = (
-                    f"<b>{name}</b> (@{username}) {admin_status}\n"
-                    f"ID: {user_id}\n"
-                    f"День рождения: {birthday_str}\n"
-                    f"Уведомления: {notify_status}\n\n"
-                )
-                
-                users_text += user_text
+                for user in regular_users:
+                    # Имя и фамилия
+                    name = f"{user.first_name} {user.last_name}".strip() if user.last_name else user.first_name
+                    
+                    # Логин
+                    username = f"@{user.username}" if user.username else ""
+                    
+                    # Полная дата рождения
+                    birth_date = ""
+                    if user.birth_date:
+                        try:
+                            birth_date_obj = datetime.strptime(user.birth_date, '%Y-%m-%d').date()
+                            birth_date = f"{birth_date_obj.strftime('%d.%m.%Y')}"
+                        except ValueError:
+                            birth_date = f"{user.birth_date}"
+                    
+                    # Формируем строку с информацией о пользователе
+                    users_text += f"👤 <b>{name}</b>\n"
+                    users_text += f"• {username}\n" if username else ""
+                    users_text += f"• {birth_date}\n" if birth_date else ""
+                    users_text += f"• Подписка: {'✅' if user.is_subscribed else '❌'}\n"
+                    users_text += f"• Рассылка: {'✅' if user.is_notifications_enabled else '❌'}\n"
+                    users_text += f"• Telegram ID: {user.telegram_id}\n\n"
             
             self.send_message(message.chat.id, users_text)
             logger.info(f"Отправлен справочник пользователей администратору {message.from_user.id}")
@@ -642,8 +669,8 @@ class UserHandler(BaseHandler):
                     name = f"{first_name} {last_name}".strip() if last_name else first_name
                     
                     # Форматируем дату рождения
-                    birth_date = datetime.strptime(birthday.get('birth_date'), '%Y-%m-%d').date()
-                    date_str = f"{birth_date.day:02d} {MONTHS_RU[month_num]['gen']}"
+                    birth_date_obj = datetime.strptime(birthday.get('birth_date'), '%Y-%m-%d').date()
+                    date_str = f"{birth_date_obj.day:02d} {MONTHS_RU[month_num]['gen']}"
                     
                     # Добавляем строку с днем рождения
                     text += f"👤 {name} - {date_str}\n"
@@ -1043,30 +1070,68 @@ class UserHandler(BaseHandler):
             if not users:
                 text = f"{EMOJI['info']} Справочник пользователей пуст."
             else:
-                # Формируем текст со списком пользователей
-                text = f"{EMOJI['directory']} <b>Справочник пользователей:</b>\n\n"
+                # Разделяем пользователей на администраторов и обычных пользователей
+                admins = [user for user in users if user.is_admin]
+                regular_users = [user for user in users if not user.is_admin]
                 
-                for i, user in enumerate(users, 1):
-                    name = f"{user.first_name} {user.last_name}".strip() if user.last_name else user.first_name
-                    username = f"@{user.username}" if user.username else "нет username"
-                    admin_status = f"{EMOJI['admin']} Администратор" if user.is_admin else ""
+                # Формируем сообщение со списком пользователей
+                text = f"{EMOJI['directory']} <b>Справочник пользователей</b>\n\n"
+                
+                # Добавляем администраторов
+                if admins:
+                    text += f"👑 <b>Администраторы:</b>\n\n"
                     
-                    # Форматируем информацию о пользователе
-                    user_info = f"{i}. <b>{name}</b> ({username})"
+                    for admin in admins:
+                        # Имя и фамилия
+                        name = f"{admin.first_name} {admin.last_name}".strip() if admin.last_name else admin.first_name
+                        
+                        # Логин
+                        username = f"@{admin.username}" if admin.username else ""
+                        
+                        # Полная дата рождения
+                        birth_date = ""
+                        if admin.birth_date:
+                            try:
+                                birth_date_obj = datetime.strptime(admin.birth_date, '%Y-%m-%d').date()
+                                birth_date = f"{birth_date_obj.strftime('%d.%m.%Y')}"
+                            except ValueError:
+                                birth_date = f"{admin.birth_date}"
+                        
+                        # Формируем строку с информацией о пользователе
+                        text += f"👤 <b>{name}</b>\n"
+                        text += f"• {username}\n" if username else ""
+                        text += f"• {birth_date}\n" if birth_date else ""
+                        text += f"• Подписка: {'✅' if admin.is_subscribed else '❌'}\n"
+                        text += f"• Рассылка: {'✅' if admin.is_notifications_enabled else '❌'}\n"
+                        text += f"• Telegram ID: {admin.telegram_id}\n\n"
+                
+                # Добавляем обычных пользователей
+                if regular_users:
+                    text += f"👥 <b>Пользователи:</b>\n\n"
                     
-                    # Добавляем дату рождения, если она есть
-                    if user.birth_date:
-                        try:
-                            birth_date = datetime.strptime(user.birth_date, '%Y-%m-%d').date()
-                            user_info += f" - {birth_date.strftime('%d.%m.%Y')}"
-                        except ValueError:
-                            user_info += f" - {user.birth_date}"
-                    
-                    # Добавляем статус администратора
-                    if admin_status:
-                        user_info += f" {admin_status}"
-                    
-                    text += f"{user_info}\n"
+                    for user in regular_users:
+                        # Имя и фамилия
+                        name = f"{user.first_name} {user.last_name}".strip() if user.last_name else user.first_name
+                        
+                        # Логин
+                        username = f"@{user.username}" if user.username else ""
+                        
+                        # Полная дата рождения
+                        birth_date = ""
+                        if user.birth_date:
+                            try:
+                                birth_date_obj = datetime.strptime(user.birth_date, '%Y-%m-%d').date()
+                                birth_date = f"{birth_date_obj.strftime('%d.%m.%Y')}"
+                            except ValueError:
+                                birth_date = f"{user.birth_date}"
+                        
+                        # Формируем строку с информацией о пользователе
+                        text += f"👤 <b>{name}</b>\n"
+                        text += f"• {username}\n" if username else ""
+                        text += f"• {birth_date}\n" if birth_date else ""
+                        text += f"• Подписка: {'✅' if user.is_subscribed else '❌'}\n"
+                        text += f"• Рассылка: {'✅' if user.is_notifications_enabled else '❌'}\n"
+                        text += f"• Telegram ID: {user.telegram_id}\n\n"
             
             # Создаем клавиатуру с кнопкой "Назад"
             keyboard = types.InlineKeyboardMarkup()
