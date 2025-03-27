@@ -41,26 +41,34 @@ class UserHandler(BaseHandler):
         self.user_service = user_service
         
     def register_handlers(self) -> None:
-        """Регистрация обработчиков команд для управления пользователями."""
-        # Базовые команды
-        self.bot.message_handler(commands=['start'])(self.start)
-        self.bot.message_handler(commands=['birthdays'])(self.list_birthdays)
+        """
+        Регистрация обработчиков для команд пользователя.
+        """
+        # Регистрация обработчиков команд для пользователя
+        self.bot.register_message_handler(self.start, commands=['start'])
+        self.bot.register_message_handler(self.list_birthdays, commands=['birthdays'])
+        self.bot.register_message_handler(self.add_user, commands=['add_user'])
+        self.bot.register_message_handler(self.remove_user, commands=['remove_user'])
+        self.bot.register_message_handler(self.get_users_directory, commands=['users', 'users_directory'])
+        self.bot.register_message_handler(self.set_admin, commands=['set_admin'])
+        self.bot.register_message_handler(self.remove_admin, commands=['remove_admin'])
         
-        # Команды для работы с пользователями (только для администраторов)
-        self.bot.message_handler(commands=['add_user'])(self.add_user)
-        self.bot.message_handler(commands=['get_users_directory'])(self.get_users_directory)
-        self.bot.message_handler(commands=['remove_user'])(self.remove_user)
-        self.bot.message_handler(commands=['set_admin'])(self.set_admin)
-        self.bot.message_handler(commands=['remove_admin'])(self.remove_admin)
-        self.bot.message_handler(commands=['toggle_notifications'])(self.toggle_notifications)
+        # Регистрация обработчиков callback-запросов для кнопок меню
+        self.bot.callback_query_handler(func=lambda call: call.data == "menu_main")(self.menu_main_callback)
+        self.bot.callback_query_handler(func=lambda call: call.data == "menu_birthdays")(self.menu_birthdays_callback)
+        self.bot.callback_query_handler(func=lambda call: call.data == "menu_users")(self.menu_users_callback)
+        self.bot.callback_query_handler(func=lambda call: call.data == "menu_notifications")(self.menu_notifications_callback)
+        self.bot.callback_query_handler(func=lambda call: call.data == "menu_settings")(self.menu_settings_callback)
+        self.bot.callback_query_handler(func=lambda call: call.data == "menu_backup")(self.menu_backup_callback)
+        self.bot.callback_query_handler(func=lambda call: call.data == "menu_game")(self.menu_game_callback)
+        self.bot.callback_query_handler(func=lambda call: call.data == "menu_write")(self.menu_write_callback)
         
-        # Обработчики callback-запросов для команд
-        self.bot.callback_query_handler(func=lambda call: call.data == 'birthdays')(self.birthdays_callback)
-        self.bot.callback_query_handler(func=lambda call: call.data == 'cmd_add_user')(self.cmd_add_user_callback)
-        self.bot.callback_query_handler(func=lambda call: call.data == 'cmd_users')(self.cmd_users_callback)
-        self.bot.callback_query_handler(func=lambda call: call.data == 'cmd_remove_user')(self.cmd_remove_user_callback)
-        self.bot.callback_query_handler(func=lambda call: call.data == 'cmd_set_admin')(self.cmd_set_admin_callback)
-        self.bot.callback_query_handler(func=lambda call: call.data == 'cmd_remove_admin')(self.cmd_remove_admin_callback)
+        # Регистрация обработчиков callback-запросов для команд управления пользователями
+        self.bot.callback_query_handler(func=lambda call: call.data == "cmd_add_user")(self.cmd_add_user_callback)
+        self.bot.callback_query_handler(func=lambda call: call.data == "cmd_remove_user")(self.cmd_remove_user_callback)
+        self.bot.callback_query_handler(func=lambda call: call.data == "cmd_users_directory")(self.cmd_users_directory_callback)
+        self.bot.callback_query_handler(func=lambda call: call.data == "cmd_set_admin")(self.cmd_set_admin_callback)
+        self.bot.callback_query_handler(func=lambda call: call.data == "cmd_remove_admin")(self.cmd_remove_admin_callback)
     
     def start(self, message: types.Message) -> None:
         """
@@ -70,6 +78,9 @@ class UserHandler(BaseHandler):
             message: Сообщение от пользователя
         """
         try:
+            # Проверяем, является ли пользователь администратором
+            is_admin = self.is_admin(message.from_user.id)
+            
             # Приветственное сообщение с инструкциями
             welcome_text = (
                 f"{EMOJI['wave']} <b>Добро пожаловать!</b>\n\n"
@@ -77,22 +88,21 @@ class UserHandler(BaseHandler):
             )
             
             # Добавляем инструкции в зависимости от прав пользователя
-            if self.is_admin(message.from_user.id):
+            if is_admin:
                 welcome_text += (
                     f"{EMOJI['admin']} <b>Вы администратор бота</b>\n\n"
-                    f"Вы можете:\n"
-                    f"• Добавлять и удалять пользователей\n"
-                    f"• Управлять шаблонами уведомлений\n"
-                    f"• Настраивать расписание уведомлений\n\n"
-                    f"Используйте команду /get_users_directory для просмотра справочника пользователей."
+                    f"У вас есть доступ ко всем функциям бота.\n"
+                    f"Выберите нужный раздел в меню ниже:"
                 )
             else:
                 welcome_text += (
-                    f"Используйте команду /birthdays для просмотра списка ближайших дней рождения."
+                    f"Выберите нужный раздел в меню ниже:"
                 )
             
-            # Отправляем приветственное сообщение
-            self.send_message(message.chat.id, welcome_text)
+            # Отправляем приветственное сообщение с клавиатурой
+            keyboard = self.keyboard_manager.create_main_menu(is_admin)
+            self.send_message(message.chat.id, welcome_text, reply_markup=keyboard)
+            
             logger.info(f"Пользователь {message.from_user.id} запустил бота")
             
         except Exception as e:
@@ -567,83 +577,619 @@ class UserHandler(BaseHandler):
                 f"{EMOJI['error']} <b>Ошибка:</b> {str(e)}"
             )
     
-    # Обработчики callback-запросов
+    # Обработчики callback-запросов для меню
     
-    @log_errors
-    def birthdays_callback(self, call: types.CallbackQuery) -> None:
+    def menu_main_callback(self, call: types.CallbackQuery) -> None:
         """
-        Обработчик callback-запроса для команды birthdays.
+        Обработчик для возврата в главное меню.
         
         Args:
-            call: Callback-запрос
+            call: Callback-запрос от кнопки
         """
-        self.bot.answer_callback_query(call.id)
-        self.list_birthdays(call.message)
+        try:
+            is_admin = self.is_admin(call.from_user.id)
+            
+            # Текст для главного меню
+            menu_text = (
+                f"📋 <b>Главное меню</b>\n\n"
+                f"Выберите нужный раздел:"
+            )
+            
+            # Обновляем сообщение с клавиатурой
+            keyboard = self.keyboard_manager.create_main_menu(is_admin)
+            self.bot.edit_message_text(
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                text=menu_text,
+                reply_markup=keyboard,
+                parse_mode='HTML'
+            )
+            
+            # Отвечаем на callback-запрос
+            self.answer_callback_query(call.id)
+            
+        except Exception as e:
+            logger.error(f"Ошибка в обработчике callback-запроса menu_main: {str(e)}")
+            self.answer_callback_query(call.id, f"Ошибка: {str(e)}", show_alert=True)
     
-    @log_errors
+    def menu_birthdays_callback(self, call: types.CallbackQuery) -> None:
+        """
+        Обработчик для отображения списка дней рождения.
+        
+        Args:
+            call: Callback-запрос от кнопки
+        """
+        try:
+            # Получаем пользователей с ближайшими днями рождения (30 дней)
+            birthday_info = self.user_service.get_users_with_upcoming_birthdays(30)
+            
+            if not birthday_info:
+                text = f"{EMOJI['info']} В ближайшие 30 дней нет дней рождения."
+            else:
+                # Формируем сообщение со списком дней рождения
+                text = f"{EMOJI['gift']} <b>Ближайшие дни рождения:</b>\n\n"
+                
+                for info in birthday_info:
+                    user = info.get("user")
+                    days_until = info.get("days_until", 0)
+                    
+                    if not user:
+                        continue
+                        
+                    name = f"{user.first_name} {user.last_name}".strip() if user.last_name else user.first_name
+                    
+                    # Формируем строку с датой и именем
+                    if days_until == 0:
+                        # День рождения сегодня
+                        birthday_text = f"{EMOJI['party']} <b>СЕГОДНЯ!</b> {name}"
+                    elif days_until == 1:
+                        # День рождения завтра
+                        birthday_text = f"{EMOJI['clock']} <b>Завтра</b> - {name}"
+                    else:
+                        # День рождения в ближайшие дни
+                        if user.birth_date:
+                            try:
+                                birthday_date = datetime.strptime(user.birth_date, '%Y-%m-%d').date()
+                                birthday_text = f"{EMOJI['calendar']} <b>{birthday_date.strftime('%d.%m')}</b> ({days_until} дн.) - {name}"
+                            except ValueError:
+                                birthday_text = f"{EMOJI['calendar']} <b>через {days_until} дн.</b> - {name}"
+                        else:
+                            birthday_text = f"{EMOJI['calendar']} <b>через {days_until} дн.</b> - {name}"
+                    
+                    text += f"{birthday_text}\n"
+            
+            # Создаем клавиатуру с кнопкой "Назад"
+            keyboard = types.InlineKeyboardMarkup()
+            back_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['back']} Назад", 
+                callback_data="menu_main"
+            )
+            keyboard.add(back_btn)
+            
+            # Обновляем сообщение
+            self.bot.edit_message_text(
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                text=text,
+                reply_markup=keyboard,
+                parse_mode='HTML'
+            )
+            
+            # Отвечаем на callback-запрос
+            self.answer_callback_query(call.id)
+            
+            logger.info(f"Отправлен список дней рождения пользователю {call.from_user.id}")
+            
+        except Exception as e:
+            logger.error(f"Ошибка при получении списка дней рождения: {str(e)}")
+            self.answer_callback_query(call.id, f"Ошибка: {str(e)}", show_alert=True)
+    
+    def menu_users_callback(self, call: types.CallbackQuery) -> None:
+        """
+        Обработчик для отображения меню управления пользователями.
+        
+        Args:
+            call: Callback-запрос от кнопки
+        """
+        try:
+            # Проверяем права администратора
+            if not self.is_admin(call.from_user.id):
+                self.answer_callback_query(call.id, "У вас нет прав администратора", show_alert=True)
+                return
+            
+            # Текст для меню управления пользователями
+            menu_text = (
+                f"{EMOJI['users']} <b>Управление пользователями</b>\n\n"
+                f"Выберите команду:"
+            )
+            
+            # Обновляем сообщение с клавиатурой
+            keyboard = self.keyboard_manager.create_users_menu()
+            self.bot.edit_message_text(
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                text=menu_text,
+                reply_markup=keyboard,
+                parse_mode='HTML'
+            )
+            
+            # Отвечаем на callback-запрос
+            self.answer_callback_query(call.id)
+            
+        except Exception as e:
+            logger.error(f"Ошибка в обработчике callback-запроса menu_users: {str(e)}")
+            self.answer_callback_query(call.id, f"Ошибка: {str(e)}", show_alert=True)
+    
+    def menu_notifications_callback(self, call: types.CallbackQuery) -> None:
+        """
+        Обработчик для отображения меню управления рассылками.
+        
+        Args:
+            call: Callback-запрос от кнопки
+        """
+        try:
+            # Проверяем права администратора
+            if not self.is_admin(call.from_user.id):
+                self.answer_callback_query(call.id, "У вас нет прав администратора", show_alert=True)
+                return
+            
+            # Текст для меню управления рассылками
+            menu_text = (
+                f"{EMOJI['bell']} <b>Управление рассылками</b>\n\n"
+                f"Выберите команду:"
+            )
+            
+            # Обновляем сообщение с клавиатурой
+            keyboard = self.keyboard_manager.create_notifications_menu()
+            self.bot.edit_message_text(
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                text=menu_text,
+                reply_markup=keyboard,
+                parse_mode='HTML'
+            )
+            
+            # Отвечаем на callback-запрос
+            self.answer_callback_query(call.id)
+            
+        except Exception as e:
+            logger.error(f"Ошибка в обработчике callback-запроса menu_notifications: {str(e)}")
+            self.answer_callback_query(call.id, f"Ошибка: {str(e)}", show_alert=True)
+    
+    def menu_settings_callback(self, call: types.CallbackQuery) -> None:
+        """
+        Обработчик для отображения меню настроек уведомлений.
+        
+        Args:
+            call: Callback-запрос от кнопки
+        """
+        try:
+            # Проверяем права администратора
+            if not self.is_admin(call.from_user.id):
+                self.answer_callback_query(call.id, "У вас нет прав администратора", show_alert=True)
+                return
+            
+            # Текст для меню настроек уведомлений
+            menu_text = (
+                f"{EMOJI['setting']} <b>Управление настройками уведомлений</b>\n\n"
+                f"В этом разделе вы можете управлять настройками уведомлений:\n"
+                f"• Просматривать список настроек\n"
+                f"• Добавлять новые настройки\n"
+                f"• Обновлять существующие настройки\n"
+                f"• Удалять настройки\n"
+                f"• Активировать/деактивировать настройки\n\n"
+                f"Выберите действие:"
+            )
+            
+            # Обновляем сообщение с клавиатурой
+            keyboard = self.keyboard_manager.create_settings_menu()
+            self.bot.edit_message_text(
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                text=menu_text,
+                reply_markup=keyboard,
+                parse_mode='HTML'
+            )
+            
+            # Отвечаем на callback-запрос
+            self.answer_callback_query(call.id)
+            
+        except Exception as e:
+            logger.error(f"Ошибка в обработчике callback-запроса menu_settings: {str(e)}")
+            self.answer_callback_query(call.id, f"Ошибка: {str(e)}", show_alert=True)
+    
+    def menu_backup_callback(self, call: types.CallbackQuery) -> None:
+        """
+        Обработчик для отображения меню управления резервными копиями.
+        
+        Args:
+            call: Callback-запрос от кнопки
+        """
+        try:
+            # Проверяем права администратора
+            if not self.is_admin(call.from_user.id):
+                self.answer_callback_query(call.id, "У вас нет прав администратора", show_alert=True)
+                return
+            
+            # Текст для меню управления резервными копиями
+            menu_text = (
+                f"{EMOJI['backup']} <b>Управление резервными копиями</b>\n\n"
+                f"Выберите команду:"
+            )
+            
+            # Обновляем сообщение с клавиатурой
+            keyboard = self.keyboard_manager.create_backup_menu()
+            self.bot.edit_message_text(
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                text=menu_text,
+                reply_markup=keyboard,
+                parse_mode='HTML'
+            )
+            
+            # Отвечаем на callback-запрос
+            self.answer_callback_query(call.id)
+            
+        except Exception as e:
+            logger.error(f"Ошибка в обработчике callback-запроса menu_backup: {str(e)}")
+            self.answer_callback_query(call.id, f"Ошибка: {str(e)}", show_alert=True)
+    
+    def menu_game_callback(self, call: types.CallbackQuery) -> None:
+        """
+        Обработчик для запуска игры 2048.
+        
+        Args:
+            call: Callback-запрос от кнопки
+        """
+        try:
+            # URL игры 2048 (из game_handler.py)
+            game_url = "https://t.me/PlayToTime_bot/Game2048"
+            
+            # Текст сообщения
+            text = (
+                f"{EMOJI['game']} <b>Игра 2048</b>\n\n"
+                f"Нажмите на кнопку ниже, чтобы запустить игру 2048."
+            )
+            
+            # Создаем клавиатуру с кнопками для игры и возврата
+            keyboard = types.InlineKeyboardMarkup()
+            
+            # Кнопка для запуска игры
+            game_button = types.InlineKeyboardButton(
+                text="Играть в 2048",
+                url=game_url
+            )
+            
+            # Кнопка возврата в главное меню
+            back_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['back']} Назад", 
+                callback_data="menu_main"
+            )
+            
+            keyboard.add(game_button)
+            keyboard.add(back_btn)
+            
+            # Обновляем сообщение
+            self.bot.edit_message_text(
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                text=text,
+                reply_markup=keyboard,
+                parse_mode='HTML'
+            )
+            
+            # Отвечаем на callback-запрос
+            self.answer_callback_query(call.id, "Переход к игре 2048")
+            
+        except Exception as e:
+            logger.error(f"Ошибка в обработчике callback-запроса menu_game: {str(e)}")
+            self.answer_callback_query(call.id, f"Ошибка: {str(e)}", show_alert=True)
+    
+    def menu_write_callback(self, call: types.CallbackQuery) -> None:
+        """
+        Обработчик для запуска функции "ПишиЛегко".
+        
+        Args:
+            call: Callback-запрос от кнопки
+        """
+        try:
+            # URL сервиса ПишиЛегко (из game_handler.py)
+            write_url = "https://t.me/PlayToTime_bot/WriteMate"
+            
+            # Текст сообщения
+            text = (
+                f"{EMOJI['pencil']} <b>ПишиЛегко</b>\n\n"
+                f"📝 <b>ПишиЛегко</b> - твой AI помощник для создания и улучшения текстовых сообщений.\n\n"
+                f"• Создавай новые тексты\n"
+                f"• Улучшай существующие сообщения\n"
+                f"• Выбирай подходящий тон и формат\n\n"
+                f"Нажмите на кнопку ниже для перехода:"
+            )
+            
+            # Создаем клавиатуру с кнопками
+            keyboard = types.InlineKeyboardMarkup()
+            
+            # Кнопка для перехода к сервису
+            write_button = types.InlineKeyboardButton(
+                text="✍️ ПишиЛегко",
+                url=write_url
+            )
+            
+            # Кнопка возврата в главное меню
+            back_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['back']} Назад", 
+                callback_data="menu_main"
+            )
+            
+            keyboard.add(write_button)
+            keyboard.add(back_btn)
+            
+            # Обновляем сообщение
+            self.bot.edit_message_text(
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                text=text,
+                reply_markup=keyboard,
+                parse_mode='HTML'
+            )
+            
+            # Отвечаем на callback-запрос
+            self.answer_callback_query(call.id, "Переход к сервису ПишиЛегко")
+            
+        except Exception as e:
+            logger.error(f"Ошибка в обработчике callback-запроса menu_write: {str(e)}")
+            self.answer_callback_query(call.id, f"Ошибка: {str(e)}", show_alert=True)
+    
+    # Обработчики callback-запросов для команд управления пользователями
+    
     def cmd_add_user_callback(self, call: types.CallbackQuery) -> None:
         """
-        Обработчик callback-запроса для команды add_user.
+        Обработчик для команды добавления пользователя.
         
         Args:
-            call: Callback-запрос
+            call: Callback-запрос от кнопки
         """
-        self.bot.answer_callback_query(call.id)
-        self.send_message(
-            call.message.chat.id,
-            f"{EMOJI['info']} Введите команду в формате: <code>/add_user @username [имя] [фамилия] [день рождения в формате ДД.ММ.ГГГГ]</code>\n\n"
-            f"Например: <code>/add_user @username Иван Иванов 01.01.1990</code>"
-        )
+        try:
+            # Проверяем права администратора
+            if not self.is_admin(call.from_user.id):
+                self.answer_callback_query(call.id, "У вас нет прав администратора", show_alert=True)
+                return
+            
+            # Текст с инструкцией по добавлению пользователя
+            text = (
+                f"{EMOJI['plus']} <b>Добавление пользователя</b>\n\n"
+                f"Для добавления пользователя отправьте команду в формате:\n"
+                f"<code>/add_user @username Имя Фамилия ДД.ММ.ГГГГ</code>\n\n"
+                f"Например:\n"
+                f"<code>/add_user @username Иван Иванов 01.01.1990</code>\n\n"
+                f"После добавления пользователь будет доступен в справочнике и получать уведомления."
+            )
+            
+            # Создаем клавиатуру с кнопкой "Назад"
+            keyboard = types.InlineKeyboardMarkup()
+            back_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['back']} Назад", 
+                callback_data="menu_users"
+            )
+            keyboard.add(back_btn)
+            
+            # Обновляем сообщение
+            self.bot.edit_message_text(
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                text=text,
+                reply_markup=keyboard,
+                parse_mode='HTML'
+            )
+            
+            # Отвечаем на callback-запрос
+            self.answer_callback_query(call.id)
+            
+        except Exception as e:
+            logger.error(f"Ошибка в обработчике callback-запроса cmd_add_user: {str(e)}")
+            self.answer_callback_query(call.id, f"Ошибка: {str(e)}", show_alert=True)
     
-    @log_errors
-    def cmd_users_callback(self, call: types.CallbackQuery) -> None:
-        """
-        Обработчик callback-запроса для команды get_users_directory.
-        
-        Args:
-            call: Callback-запрос
-        """
-        self.bot.answer_callback_query(call.id)
-        self.get_users_directory(call.message)
-    
-    @log_errors
     def cmd_remove_user_callback(self, call: types.CallbackQuery) -> None:
         """
-        Обработчик callback-запроса для команды remove_user.
+        Обработчик для команды удаления пользователя.
         
         Args:
-            call: Callback-запрос
+            call: Callback-запрос от кнопки
         """
-        self.bot.answer_callback_query(call.id)
-        self.send_message(
-            call.message.chat.id,
-            f"{EMOJI['info']} Введите команду в формате: <code>/remove_user @username</code>"
-        )
+        try:
+            # Проверяем права администратора
+            if not self.is_admin(call.from_user.id):
+                self.answer_callback_query(call.id, "У вас нет прав администратора", show_alert=True)
+                return
+            
+            # Текст с инструкцией по удалению пользователя
+            text = (
+                f"{EMOJI['minus']} <b>Удаление пользователя</b>\n\n"
+                f"Для удаления пользователя отправьте команду в формате:\n"
+                f"<code>/remove_user @username</code>\n\n"
+                f"После удаления пользователь не будет получать уведомления о днях рождения."
+            )
+            
+            # Создаем клавиатуру с кнопкой "Назад"
+            keyboard = types.InlineKeyboardMarkup()
+            back_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['back']} Назад", 
+                callback_data="menu_users"
+            )
+            keyboard.add(back_btn)
+            
+            # Обновляем сообщение
+            self.bot.edit_message_text(
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                text=text,
+                reply_markup=keyboard,
+                parse_mode='HTML'
+            )
+            
+            # Отвечаем на callback-запрос
+            self.answer_callback_query(call.id)
+            
+        except Exception as e:
+            logger.error(f"Ошибка в обработчике callback-запроса cmd_remove_user: {str(e)}")
+            self.answer_callback_query(call.id, f"Ошибка: {str(e)}", show_alert=True)
     
-    @log_errors
+    def cmd_users_directory_callback(self, call: types.CallbackQuery) -> None:
+        """
+        Обработчик для команды просмотра справочника пользователей.
+        
+        Args:
+            call: Callback-запрос от кнопки
+        """
+        try:
+            # Проверяем права администратора
+            if not self.is_admin(call.from_user.id):
+                self.answer_callback_query(call.id, "У вас нет прав администратора", show_alert=True)
+                return
+            
+            # Получаем список всех пользователей
+            users = self.user_service.get_all_users()
+            
+            if not users:
+                text = f"{EMOJI['info']} Справочник пользователей пуст."
+            else:
+                # Формируем текст со списком пользователей
+                text = f"{EMOJI['directory']} <b>Справочник пользователей:</b>\n\n"
+                
+                for i, user in enumerate(users, 1):
+                    name = f"{user.first_name} {user.last_name}".strip() if user.last_name else user.first_name
+                    username = f"@{user.username}" if user.username else "нет username"
+                    admin_status = f"{EMOJI['admin']} Администратор" if user.is_admin else ""
+                    
+                    # Форматируем информацию о пользователе
+                    user_info = f"{i}. <b>{name}</b> ({username})"
+                    
+                    # Добавляем дату рождения, если она есть
+                    if user.birth_date:
+                        try:
+                            birth_date = datetime.strptime(user.birth_date, '%Y-%m-%d').date()
+                            user_info += f" - {birth_date.strftime('%d.%m.%Y')}"
+                        except ValueError:
+                            user_info += f" - {user.birth_date}"
+                    
+                    # Добавляем статус администратора
+                    if admin_status:
+                        user_info += f" {admin_status}"
+                    
+                    text += f"{user_info}\n"
+            
+            # Создаем клавиатуру с кнопкой "Назад"
+            keyboard = types.InlineKeyboardMarkup()
+            back_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['back']} Назад", 
+                callback_data="menu_users"
+            )
+            keyboard.add(back_btn)
+            
+            # Обновляем сообщение
+            self.bot.edit_message_text(
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                text=text,
+                reply_markup=keyboard,
+                parse_mode='HTML'
+            )
+            
+            # Отвечаем на callback-запрос
+            self.answer_callback_query(call.id)
+            
+        except Exception as e:
+            logger.error(f"Ошибка в обработчике callback-запроса cmd_users_directory: {str(e)}")
+            self.answer_callback_query(call.id, f"Ошибка: {str(e)}", show_alert=True)
+    
     def cmd_set_admin_callback(self, call: types.CallbackQuery) -> None:
         """
-        Обработчик callback-запроса для команды set_admin.
+        Обработчик для команды назначения администратора.
         
         Args:
-            call: Callback-запрос
+            call: Callback-запрос от кнопки
         """
-        self.bot.answer_callback_query(call.id)
-        self.send_message(
-            call.message.chat.id,
-            f"{EMOJI['info']} Введите команду в формате: <code>/set_admin @username</code>"
-        )
+        try:
+            # Проверяем права администратора
+            if not self.is_admin(call.from_user.id):
+                self.answer_callback_query(call.id, "У вас нет прав администратора", show_alert=True)
+                return
+            
+            # Текст с инструкцией по назначению администратора
+            text = (
+                f"{EMOJI['admin']} <b>Назначение администратора</b>\n\n"
+                f"Для назначения пользователя администратором отправьте команду в формате:\n"
+                f"<code>/set_admin @username</code>\n\n"
+                f"После назначения пользователь получит доступ ко всем административным функциям бота."
+            )
+            
+            # Создаем клавиатуру с кнопкой "Назад"
+            keyboard = types.InlineKeyboardMarkup()
+            back_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['back']} Назад", 
+                callback_data="menu_users"
+            )
+            keyboard.add(back_btn)
+            
+            # Обновляем сообщение
+            self.bot.edit_message_text(
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                text=text,
+                reply_markup=keyboard,
+                parse_mode='HTML'
+            )
+            
+            # Отвечаем на callback-запрос
+            self.answer_callback_query(call.id)
+            
+        except Exception as e:
+            logger.error(f"Ошибка в обработчике callback-запроса cmd_set_admin: {str(e)}")
+            self.answer_callback_query(call.id, f"Ошибка: {str(e)}", show_alert=True)
     
-    @log_errors
     def cmd_remove_admin_callback(self, call: types.CallbackQuery) -> None:
         """
-        Обработчик callback-запроса для команды remove_admin.
+        Обработчик для команды отзыва прав администратора.
         
         Args:
-            call: Callback-запрос
+            call: Callback-запрос от кнопки
         """
-        self.bot.answer_callback_query(call.id)
-        self.send_message(
-            call.message.chat.id,
-            f"{EMOJI['info']} Введите команду в формате: <code>/remove_admin @username</code>"
-        ) 
+        try:
+            # Проверяем права администратора
+            if not self.is_admin(call.from_user.id):
+                self.answer_callback_query(call.id, "У вас нет прав администратора", show_alert=True)
+                return
+            
+            # Текст с инструкцией по отзыву прав администратора
+            text = (
+                f"{EMOJI['user']} <b>Отзыв прав администратора</b>\n\n"
+                f"Для отзыва прав администратора у пользователя отправьте команду в формате:\n"
+                f"<code>/remove_admin @username</code>\n\n"
+                f"После отзыва прав пользователь потеряет доступ к административным функциям бота."
+            )
+            
+            # Создаем клавиатуру с кнопкой "Назад"
+            keyboard = types.InlineKeyboardMarkup()
+            back_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['back']} Назад", 
+                callback_data="menu_users"
+            )
+            keyboard.add(back_btn)
+            
+            # Обновляем сообщение
+            self.bot.edit_message_text(
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                text=text,
+                reply_markup=keyboard,
+                parse_mode='HTML'
+            )
+            
+            # Отвечаем на callback-запрос
+            self.answer_callback_query(call.id)
+            
+        except Exception as e:
+            logger.error(f"Ошибка в обработчике callback-запроса cmd_remove_admin: {str(e)}")
+            self.answer_callback_query(call.id, f"Ошибка: {str(e)}", show_alert=True)
+    
+    # ... остальные методы класса ... 

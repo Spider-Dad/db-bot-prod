@@ -43,28 +43,32 @@ class TemplateHandler(BaseHandler):
         self.user_service = user_service
         
     def register_handlers(self) -> None:
-        """Регистрация обработчиков команд для управления шаблонами уведомлений."""
-        # Команды для работы с шаблонами
-        self.bot.message_handler(commands=['get_templates'])(self.get_templates)
-        self.bot.message_handler(commands=['set_template'])(self.set_template)
-        self.bot.message_handler(commands=['update_template'])(self.update_template)
-        self.bot.message_handler(commands=['delete_template'])(self.delete_template)
-        self.bot.message_handler(commands=['preview_template'])(self.preview_template)
-        self.bot.message_handler(commands=['test_template'])(self.test_template)
-        self.bot.message_handler(commands=['activate_template'])(self.activate_template)
-        self.bot.message_handler(commands=['deactivate_template'])(self.deactivate_template)
-        self.bot.message_handler(commands=['help_template'])(self.help_template)
+        """
+        Регистрация обработчиков для шаблонов.
+        """
+        # Регистрация обработчиков команд для шаблонов
+        self.bot.register_message_handler(self.get_templates, commands=['get_templates'])
+        self.bot.register_message_handler(self.set_template, commands=['set_template'])
+        self.bot.register_message_handler(self.update_template, commands=['update_template'])
+        self.bot.register_message_handler(self.delete_template, commands=['delete_template'])
+        self.bot.register_message_handler(self.preview_template, commands=['preview_template'])
+        self.bot.register_message_handler(self.test_template, commands=['test_template'])
+        self.bot.register_message_handler(self.activate_template, commands=['activate_template'])
+        self.bot.register_message_handler(self.deactivate_template, commands=['deactivate_template'])
+        self.bot.register_message_handler(self.help_template, commands=['help_template'])
+        self.bot.register_message_handler(self.menu_templates, commands=['menu_templates'])
         
-        # Обработчики callback-запросов для команд
-        self.bot.callback_query_handler(func=lambda call: call.data == 'cmd_get_templates')(self.cmd_get_templates_callback)
-        self.bot.callback_query_handler(func=lambda call: call.data == 'cmd_set_template')(self.cmd_set_template_callback)
-        self.bot.callback_query_handler(func=lambda call: call.data == 'cmd_update_template')(self.cmd_update_template_callback)
-        self.bot.callback_query_handler(func=lambda call: call.data == 'cmd_delete_template')(self.cmd_delete_template_callback)
-        self.bot.callback_query_handler(func=lambda call: call.data == 'cmd_preview_template')(self.cmd_preview_template_callback)
-        self.bot.callback_query_handler(func=lambda call: call.data == 'cmd_test_template')(self.cmd_test_template_callback)
-        self.bot.callback_query_handler(func=lambda call: call.data == 'cmd_activate_template')(self.cmd_activate_template_callback)
-        self.bot.callback_query_handler(func=lambda call: call.data == 'cmd_deactivate_template')(self.cmd_deactivate_template_callback)
-        self.bot.callback_query_handler(func=lambda call: call.data == 'cmd_help_template')(self.cmd_help_template_callback)
+        # Регистрация обработчиков callback-запросов для шаблонов
+        self.bot.register_callback_query_handler(self.cmd_add_template_callback, func=lambda call: call.data == 'cmd_add_template')
+        self.bot.register_callback_query_handler(self.cmd_remove_template_callback, func=lambda call: call.data == 'cmd_remove_template')
+        self.bot.register_callback_query_handler(self.cmd_templates_list_callback, func=lambda call: call.data == 'cmd_templates_list')
+        self.bot.register_callback_query_handler(self.cmd_update_template_callback, func=lambda call: call.data == 'cmd_update_template')
+        self.bot.register_callback_query_handler(self.cmd_test_template_callback, func=lambda call: call.data == 'cmd_test_template')
+        self.bot.register_callback_query_handler(self.cmd_preview_template_callback, func=lambda call: call.data == 'cmd_preview_template')
+        self.bot.register_callback_query_handler(self.cmd_activate_template_callback, func=lambda call: call.data == 'cmd_activate_template')
+        self.bot.register_callback_query_handler(self.cmd_deactivate_template_callback, func=lambda call: call.data == 'cmd_deactivate_template')
+        self.bot.register_callback_query_handler(self.cmd_template_help_callback, func=lambda call: call.data == 'cmd_template_help')
+        self.bot.register_callback_query_handler(self.menu_templates_callback, func=lambda call: call.data == 'menu_templates')
     
     @admin_required
     @log_errors
@@ -654,30 +658,181 @@ class TemplateHandler(BaseHandler):
     # Обработчики callback-запросов
     
     @log_errors
-    def cmd_get_templates_callback(self, call: types.CallbackQuery) -> None:
+    def cmd_add_template_callback(self, call: types.CallbackQuery) -> None:
         """
-        Обработчик callback-запроса для команды get_templates.
+        Обработчик callback-запроса для команды add_template.
         
         Args:
-            call: Callback-запрос
+            call: Callback-запрос от кнопки
         """
-        self.bot.answer_callback_query(call.id)
-        self.get_templates(call.message)
+        try:
+            # Проверяем права администратора
+            if not self.is_admin(call.from_user.id):
+                self.answer_callback_query(call.id, "У вас нет прав администратора", show_alert=True)
+                return
+            
+            # Текст с инструкцией по добавлению шаблона
+            text = (
+                f"{EMOJI['plus']} <b>Добавление шаблона</b>\n\n"
+                f"Для добавления шаблона отправьте команду в формате:\n"
+                f"<code>/set_template [название] [категория] [текст шаблона]</code>\n\n"
+                f"Например:\n"
+                f"<code>/set_template День_рождения birthday Завтра день рождения у {{name}}!</code>\n\n"
+                f"Доступные переменные:\n"
+                f"• {{name}} - Полное имя пользователя\n"
+                f"• {{first_name}} - Имя пользователя\n"
+                f"• {{last_name}} - Фамилия пользователя\n"
+                f"• {{date}} - Дата события\n"
+                f"• {{date_before}} - Дата за день до события\n"
+                f"• {{days_until}} - Количество дней до события\n"
+                f"• {{phone_pay}} - Номер телефона для перевода\n"
+                f"• {{name_pay}} - ФИО получателя платежа"
+            )
+            
+            # Создаем клавиатуру с кнопкой "Назад"
+            keyboard = types.InlineKeyboardMarkup()
+            back_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['back']} Назад", 
+                callback_data="menu_templates"
+            )
+            keyboard.add(back_btn)
+            
+            # Обновляем сообщение
+            self.bot.edit_message_text(
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                text=text,
+                reply_markup=keyboard,
+                parse_mode='HTML'
+            )
+            
+            # Отвечаем на callback-запрос
+            self.answer_callback_query(call.id)
+            
+        except Exception as e:
+            logger.error(f"Ошибка в обработчике callback-запроса cmd_add_template: {str(e)}")
+            self.answer_callback_query(call.id, f"Ошибка: {str(e)}", show_alert=True)
     
     @log_errors
-    def cmd_set_template_callback(self, call: types.CallbackQuery) -> None:
+    def cmd_remove_template_callback(self, call: types.CallbackQuery) -> None:
         """
-        Обработчик callback-запроса для команды set_template.
+        Обработчик callback-запроса для команды remove_template.
         
         Args:
-            call: Callback-запрос
+            call: Callback-запрос от кнопки
         """
-        self.bot.answer_callback_query(call.id)
-        self.send_message(
-            call.message.chat.id,
-            f"{EMOJI['info']} Введите команду в формате: <code>/set_template [название] [категория] [текст шаблона]</code>\n\n"
-            f"Например: <code>/set_template День_рождения birthdays Завтра день рождения у {{name}}!</code>"
-        )
+        try:
+            # Проверяем права администратора
+            if not self.is_admin(call.from_user.id):
+                self.answer_callback_query(call.id, "У вас нет прав администратора", show_alert=True)
+                return
+            
+            # Текст с инструкцией по удалению шаблона
+            text = (
+                f"{EMOJI['minus']} <b>Удаление шаблона</b>\n\n"
+                f"Для удаления шаблона отправьте команду в формате:\n"
+                f"<code>/delete_template [id]</code>\n\n"
+                f"Например:\n"
+                f"<code>/delete_template 1</code>\n\n"
+                f"Чтобы узнать ID шаблона, используйте команду /get_templates или нажмите кнопку «Список шаблонов»."
+            )
+            
+            # Создаем клавиатуру с кнопками "Список шаблонов" и "Назад"
+            keyboard = types.InlineKeyboardMarkup()
+            list_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['list']} Список шаблонов", 
+                callback_data="cmd_templates_list"
+            )
+            back_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['back']} Назад", 
+                callback_data="menu_templates"
+            )
+            keyboard.add(list_btn)
+            keyboard.add(back_btn)
+            
+            # Обновляем сообщение
+            self.bot.edit_message_text(
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                text=text,
+                reply_markup=keyboard,
+                parse_mode='HTML'
+            )
+            
+            # Отвечаем на callback-запрос
+            self.answer_callback_query(call.id)
+            
+        except Exception as e:
+            logger.error(f"Ошибка в обработчике callback-запроса cmd_remove_template: {str(e)}")
+            self.answer_callback_query(call.id, f"Ошибка: {str(e)}", show_alert=True)
+    
+    @log_errors
+    def cmd_templates_list_callback(self, call: types.CallbackQuery) -> None:
+        """
+        Обработчик callback-запроса для команды templates_list.
+        
+        Args:
+            call: Callback-запрос от кнопки
+        """
+        try:
+            # Проверяем права администратора
+            if not self.is_admin(call.from_user.id):
+                self.answer_callback_query(call.id, "У вас нет прав администратора", show_alert=True)
+                return
+            
+            # Получаем все шаблоны
+            templates = self.template_service.get_all_templates()
+            
+            if not templates:
+                text = f"{EMOJI['info']} В системе нет шаблонов уведомлений."
+            else:
+                # Формируем сообщение со списком шаблонов
+                text = f"{EMOJI['template']} <b>Список шаблонов уведомлений ({len(templates)}):</b>\n\n"
+                
+                for template in templates:
+                    template_id = template.id
+                    name = template.name
+                    category = template.category
+                    template_text = template.template
+                    is_active = template.is_active
+                    
+                    # Ограничиваем длину текста для отображения
+                    if len(template_text) > 50:
+                        template_text = template_text[:50] + "..."
+                    
+                    status_emoji = EMOJI['active'] if is_active else EMOJI['inactive']
+                    
+                    template_info = (
+                        f"{status_emoji} <b>ID {template_id}: {name}</b>\n"
+                        f"Категория: {category}\n"
+                        f"Текст: <code>{template_text}</code>\n\n"
+                    )
+                    
+                    text += template_info
+            
+            # Создаем клавиатуру с кнопкой "Назад"
+            keyboard = types.InlineKeyboardMarkup()
+            back_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['back']} Назад", 
+                callback_data="menu_templates"
+            )
+            keyboard.add(back_btn)
+            
+            # Обновляем сообщение
+            self.bot.edit_message_text(
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                text=text,
+                reply_markup=keyboard,
+                parse_mode='HTML'
+            )
+            
+            # Отвечаем на callback-запрос
+            self.answer_callback_query(call.id)
+            
+        except Exception as e:
+            logger.error(f"Ошибка в обработчике callback-запроса cmd_templates_list: {str(e)}")
+            self.answer_callback_query(call.id, f"Ошибка: {str(e)}", show_alert=True)
     
     @log_errors
     def cmd_update_template_callback(self, call: types.CallbackQuery) -> None:
@@ -685,44 +840,52 @@ class TemplateHandler(BaseHandler):
         Обработчик callback-запроса для команды update_template.
         
         Args:
-            call: Callback-запрос
+            call: Callback-запрос от кнопки
         """
-        self.bot.answer_callback_query(call.id)
-        self.send_message(
-            call.message.chat.id,
-            f"{EMOJI['info']} Введите команду в формате: <code>/update_template [id] [новый текст шаблона]</code>\n\n"
-            f"Например: <code>/update_template 1 Завтра день рождения у {{name}}!</code>"
-        )
-    
-    @log_errors
-    def cmd_delete_template_callback(self, call: types.CallbackQuery) -> None:
-        """
-        Обработчик callback-запроса для команды delete_template.
-        
-        Args:
-            call: Callback-запрос
-        """
-        self.bot.answer_callback_query(call.id)
-        self.send_message(
-            call.message.chat.id,
-            f"{EMOJI['info']} Введите команду в формате: <code>/delete_template [id]</code>\n\n"
-            f"Например: <code>/delete_template 1</code>"
-        )
-    
-    @log_errors
-    def cmd_preview_template_callback(self, call: types.CallbackQuery) -> None:
-        """
-        Обработчик callback-запроса для команды preview_template.
-        
-        Args:
-            call: Callback-запрос
-        """
-        self.bot.answer_callback_query(call.id)
-        self.send_message(
-            call.message.chat.id,
-            f"{EMOJI['info']} Введите команду в формате: <code>/preview_template [id]</code>\n\n"
-            f"Например: <code>/preview_template 1</code>"
-        )
+        try:
+            # Проверяем права администратора
+            if not self.is_admin(call.from_user.id):
+                self.answer_callback_query(call.id, "У вас нет прав администратора", show_alert=True)
+                return
+            
+            # Текст с инструкцией по обновлению шаблона
+            text = (
+                f"{EMOJI['edit']} <b>Обновление шаблона</b>\n\n"
+                f"Для обновления шаблона отправьте команду в формате:\n"
+                f"<code>/update_template [id] [текст шаблона]</code>\n\n"
+                f"Например:\n"
+                f"<code>/update_template 1 Завтра день рождения у {{name}}!</code>\n\n"
+                f"Чтобы узнать ID шаблона, используйте команду /get_templates или нажмите кнопку «Список шаблонов»."
+            )
+            
+            # Создаем клавиатуру с кнопками "Список шаблонов" и "Назад"
+            keyboard = types.InlineKeyboardMarkup()
+            list_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['list']} Список шаблонов", 
+                callback_data="cmd_templates_list"
+            )
+            back_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['back']} Назад", 
+                callback_data="menu_templates"
+            )
+            keyboard.add(list_btn)
+            keyboard.add(back_btn)
+            
+            # Обновляем сообщение
+            self.bot.edit_message_text(
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                text=text,
+                reply_markup=keyboard,
+                parse_mode='HTML'
+            )
+            
+            # Отвечаем на callback-запрос
+            self.answer_callback_query(call.id)
+            
+        except Exception as e:
+            logger.error(f"Ошибка в обработчике callback-запроса cmd_update_template: {str(e)}")
+            self.answer_callback_query(call.id, f"Ошибка: {str(e)}", show_alert=True)
     
     @log_errors
     def cmd_test_template_callback(self, call: types.CallbackQuery) -> None:
@@ -730,14 +893,105 @@ class TemplateHandler(BaseHandler):
         Обработчик callback-запроса для команды test_template.
         
         Args:
-            call: Callback-запрос
+            call: Callback-запрос от кнопки
         """
-        self.bot.answer_callback_query(call.id)
-        self.send_message(
-            call.message.chat.id,
-            f"{EMOJI['info']} Введите команду в формате: <code>/test_template [id шаблона] [id пользователя]</code>\n\n"
-            f"Например: <code>/test_template 1 123456789</code>"
-        )
+        try:
+            # Проверяем права администратора
+            if not self.is_admin(call.from_user.id):
+                self.answer_callback_query(call.id, "У вас нет прав администратора", show_alert=True)
+                return
+            
+            # Текст с инструкцией по тестированию шаблона
+            text = (
+                f"{EMOJI['test']} <b>Тестирование шаблона</b>\n\n"
+                f"Для тестирования шаблона отправьте команду в формате:\n"
+                f"<code>/test_template [id шаблона] [id пользователя]</code>\n\n"
+                f"Например:\n"
+                f"<code>/test_template 1 123456789</code>\n\n"
+                f"Чтобы узнать ID шаблона, используйте команду /get_templates или нажмите кнопку «Список шаблонов»."
+            )
+            
+            # Создаем клавиатуру с кнопками "Список шаблонов" и "Назад"
+            keyboard = types.InlineKeyboardMarkup()
+            list_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['list']} Список шаблонов", 
+                callback_data="cmd_templates_list"
+            )
+            back_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['back']} Назад", 
+                callback_data="menu_templates"
+            )
+            keyboard.add(list_btn)
+            keyboard.add(back_btn)
+            
+            # Обновляем сообщение
+            self.bot.edit_message_text(
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                text=text,
+                reply_markup=keyboard,
+                parse_mode='HTML'
+            )
+            
+            # Отвечаем на callback-запрос
+            self.answer_callback_query(call.id)
+            
+        except Exception as e:
+            logger.error(f"Ошибка в обработчике callback-запроса cmd_test_template: {str(e)}")
+            self.answer_callback_query(call.id, f"Ошибка: {str(e)}", show_alert=True)
+    
+    @log_errors
+    def cmd_preview_template_callback(self, call: types.CallbackQuery) -> None:
+        """
+        Обработчик callback-запроса для команды preview_template.
+        
+        Args:
+            call: Callback-запрос от кнопки
+        """
+        try:
+            # Проверяем права администратора
+            if not self.is_admin(call.from_user.id):
+                self.answer_callback_query(call.id, "У вас нет прав администратора", show_alert=True)
+                return
+            
+            # Текст с инструкцией по предпросмотру шаблона
+            text = (
+                f"{EMOJI['eye']} <b>Предпросмотр шаблона</b>\n\n"
+                f"Для предпросмотра шаблона отправьте команду в формате:\n"
+                f"<code>/preview_template [id]</code>\n\n"
+                f"Например:\n"
+                f"<code>/preview_template 1</code>\n\n"
+                f"Чтобы узнать ID шаблона, используйте команду /get_templates или нажмите кнопку «Список шаблонов»."
+            )
+            
+            # Создаем клавиатуру с кнопками "Список шаблонов" и "Назад"
+            keyboard = types.InlineKeyboardMarkup()
+            list_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['list']} Список шаблонов", 
+                callback_data="cmd_templates_list"
+            )
+            back_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['back']} Назад", 
+                callback_data="menu_templates"
+            )
+            keyboard.add(list_btn)
+            keyboard.add(back_btn)
+            
+            # Обновляем сообщение
+            self.bot.edit_message_text(
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                text=text,
+                reply_markup=keyboard,
+                parse_mode='HTML'
+            )
+            
+            # Отвечаем на callback-запрос
+            self.answer_callback_query(call.id)
+            
+        except Exception as e:
+            logger.error(f"Ошибка в обработчике callback-запроса cmd_preview_template: {str(e)}")
+            self.answer_callback_query(call.id, f"Ошибка: {str(e)}", show_alert=True)
     
     @log_errors
     def cmd_activate_template_callback(self, call: types.CallbackQuery) -> None:
@@ -745,14 +999,52 @@ class TemplateHandler(BaseHandler):
         Обработчик callback-запроса для команды activate_template.
         
         Args:
-            call: Callback-запрос
+            call: Callback-запрос от кнопки
         """
-        self.bot.answer_callback_query(call.id)
-        self.send_message(
-            call.message.chat.id,
-            f"{EMOJI['info']} Введите команду в формате: <code>/activate_template [id]</code>\n\n"
-            f"Например: <code>/activate_template 1</code>"
-        )
+        try:
+            # Проверяем права администратора
+            if not self.is_admin(call.from_user.id):
+                self.answer_callback_query(call.id, "У вас нет прав администратора", show_alert=True)
+                return
+            
+            # Текст с инструкцией по активации шаблона
+            text = (
+                f"{EMOJI['check']} <b>Активация шаблона</b>\n\n"
+                f"Для активации шаблона отправьте команду в формате:\n"
+                f"<code>/activate_template [id]</code>\n\n"
+                f"Например:\n"
+                f"<code>/activate_template 1</code>\n\n"
+                f"Чтобы узнать ID шаблона, используйте команду /get_templates или нажмите кнопку «Список шаблонов»."
+            )
+            
+            # Создаем клавиатуру с кнопками "Список шаблонов" и "Назад"
+            keyboard = types.InlineKeyboardMarkup()
+            list_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['list']} Список шаблонов", 
+                callback_data="cmd_templates_list"
+            )
+            back_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['back']} Назад", 
+                callback_data="menu_templates"
+            )
+            keyboard.add(list_btn)
+            keyboard.add(back_btn)
+            
+            # Обновляем сообщение
+            self.bot.edit_message_text(
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                text=text,
+                reply_markup=keyboard,
+                parse_mode='HTML'
+            )
+            
+            # Отвечаем на callback-запрос
+            self.answer_callback_query(call.id)
+            
+        except Exception as e:
+            logger.error(f"Ошибка в обработчике callback-запроса cmd_activate_template: {str(e)}")
+            self.answer_callback_query(call.id, f"Ошибка: {str(e)}", show_alert=True)
     
     @log_errors
     def cmd_deactivate_template_callback(self, call: types.CallbackQuery) -> None:
@@ -760,25 +1052,86 @@ class TemplateHandler(BaseHandler):
         Обработчик callback-запроса для команды deactivate_template.
         
         Args:
-            call: Callback-запрос
+            call: Callback-запрос от кнопки
         """
-        self.bot.answer_callback_query(call.id)
-        self.send_message(
-            call.message.chat.id,
-            f"{EMOJI['info']} Введите команду в формате: <code>/deactivate_template [id]</code>\n\n"
-            f"Например: <code>/deactivate_template 1</code>"
-        )
+        try:
+            # Проверяем права администратора
+            if not self.is_admin(call.from_user.id):
+                self.answer_callback_query(call.id, "У вас нет прав администратора", show_alert=True)
+                return
+            
+            # Текст с инструкцией по деактивации шаблона
+            text = (
+                f"{EMOJI['cross']} <b>Деактивация шаблона</b>\n\n"
+                f"Для деактивации шаблона отправьте команду в формате:\n"
+                f"<code>/deactivate_template [id]</code>\n\n"
+                f"Например:\n"
+                f"<code>/deactivate_template 1</code>\n\n"
+                f"Чтобы узнать ID шаблона, используйте команду /get_templates или нажмите кнопку «Список шаблонов»."
+            )
+            
+            # Создаем клавиатуру с кнопками "Список шаблонов" и "Назад"
+            keyboard = types.InlineKeyboardMarkup()
+            list_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['list']} Список шаблонов", 
+                callback_data="cmd_templates_list"
+            )
+            back_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['back']} Назад", 
+                callback_data="menu_templates"
+            )
+            keyboard.add(list_btn)
+            keyboard.add(back_btn)
+            
+            # Обновляем сообщение
+            self.bot.edit_message_text(
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                text=text,
+                reply_markup=keyboard,
+                parse_mode='HTML'
+            )
+            
+            # Отвечаем на callback-запрос
+            self.answer_callback_query(call.id)
+            
+        except Exception as e:
+            logger.error(f"Ошибка в обработчике callback-запроса cmd_deactivate_template: {str(e)}")
+            self.answer_callback_query(call.id, f"Ошибка: {str(e)}", show_alert=True)
     
     @log_errors
-    def cmd_help_template_callback(self, call: types.CallbackQuery) -> None:
+    def cmd_template_help_callback(self, call: types.CallbackQuery) -> None:
         """
-        Обработчик callback-запроса для команды help_template.
+        Обработчик callback-запроса для команды template_help.
         
         Args:
-            call: Callback-запрос
+            call: Callback-запрос от кнопки
         """
-        self.bot.answer_callback_query(call.id)
-        self.help_template(call.message)
+        try:
+            # Отправляем справку по шаблонам
+            # Создаем клавиатуру с кнопкой "Назад"
+            keyboard = types.InlineKeyboardMarkup()
+            back_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['back']} Назад", 
+                callback_data="menu_templates"
+            )
+            keyboard.add(back_btn)
+            
+            # Обновляем сообщение
+            self.bot.edit_message_text(
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                text=TEMPLATE_HELP_TEXT,
+                reply_markup=keyboard,
+                parse_mode='HTML'
+            )
+            
+            # Отвечаем на callback-запрос
+            self.answer_callback_query(call.id)
+            
+        except Exception as e:
+            logger.error(f"Ошибка в обработчике callback-запроса cmd_template_help: {str(e)}")
+            self.answer_callback_query(call.id, f"Ошибка: {str(e)}", show_alert=True)
     
     def _validate_html_tags(self, text: str) -> bool:
         """
@@ -790,18 +1143,11 @@ class TemplateHandler(BaseHandler):
         Returns:
             True, если все HTML-теги в тексте валидны, иначе False
         """
-        import re
+        from bot.utils.validators import validate_html
         
-        # Ищем все HTML-теги в тексте
-        tag_pattern = re.compile(r'<(\w+)[^>]*>')
-        tags = tag_pattern.findall(text)
-        
-        # Проверяем, что все найденные теги разрешены
-        for tag in tags:
-            if tag.lower() not in ALLOWED_HTML_TAGS:
-                return False
-        
-        return True
+        # Используем функцию validate_html из модуля validators
+        is_valid, _ = validate_html(text)
+        return is_valid
     
     def _validate_template_variables(self, text: str) -> bool:
         """
@@ -824,4 +1170,203 @@ class TemplateHandler(BaseHandler):
             if var not in TEMPLATE_VARIABLES:
                 return False
         
-        return True 
+        return True
+    
+    @log_errors
+    def menu_templates_callback(self, call: types.CallbackQuery) -> None:
+        """
+        Обработчик callback-запроса для меню шаблонов.
+        
+        Args:
+            call: Callback-запрос от кнопки
+        """
+        try:
+            # Проверяем права администратора
+            if not self.is_admin(call.from_user.id):
+                self.answer_callback_query(call.id, "У вас нет прав администратора", show_alert=True)
+                return
+            
+            # Текст с описанием раздела шаблонов
+            text = (
+                f"{EMOJI['template']} <b>Управление шаблонами уведомлений</b>\n\n"
+                f"В этом разделе вы можете управлять шаблонами уведомлений:\n"
+                f"• Просматривать список шаблонов\n"
+                f"• Добавлять новые шаблоны\n"
+                f"• Обновлять существующие шаблоны\n"
+                f"• Удалять шаблоны\n"
+                f"• Активировать/деактивировать шаблоны\n"
+                f"• Просматривать и тестировать шаблоны\n\n"
+                f"Выберите действие:"
+            )
+            
+            # Создаем клавиатуру с кнопками для управления шаблонами
+            keyboard = types.InlineKeyboardMarkup(row_width=2)
+            
+            # Кнопки для основных действий с шаблонами
+            list_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['list']} Список шаблонов", 
+                callback_data="cmd_templates_list"
+            )
+            add_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['plus']} Добавить шаблон", 
+                callback_data="cmd_add_template"
+            )
+            update_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['edit']} Изменить шаблон", 
+                callback_data="cmd_update_template"
+            )
+            remove_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['minus']} Удалить шаблон", 
+                callback_data="cmd_remove_template"
+            )
+            
+            # Кнопки для дополнительных действий
+            preview_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['eye']} Предпросмотр", 
+                callback_data="cmd_preview_template"
+            )
+            test_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['test']} Тестировать", 
+                callback_data="cmd_test_template"
+            )
+            activate_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['check']} Активировать", 
+                callback_data="cmd_activate_template"
+            )
+            deactivate_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['cross']} Деактивировать", 
+                callback_data="cmd_deactivate_template"
+            )
+            
+            # Кнопка справки
+            help_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['help']} Справка", 
+                callback_data="cmd_template_help"
+            )
+            
+            # Кнопка возврата в главное меню
+            back_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['back']} В главное меню", 
+                callback_data="menu_main"
+            )
+            
+            # Добавляем кнопки в клавиатуру
+            keyboard.add(list_btn, add_btn)
+            keyboard.add(update_btn, remove_btn)
+            keyboard.add(preview_btn, test_btn)
+            keyboard.add(activate_btn, deactivate_btn)
+            keyboard.add(help_btn)
+            keyboard.add(back_btn)
+            
+            # Обновляем сообщение
+            self.bot.edit_message_text(
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                text=text,
+                reply_markup=keyboard,
+                parse_mode='HTML'
+            )
+            
+            # Отвечаем на callback-запрос
+            self.answer_callback_query(call.id)
+            
+        except Exception as e:
+            logger.error(f"Ошибка в обработчике callback-запроса menu_templates: {str(e)}")
+            self.answer_callback_query(call.id, f"Ошибка: {str(e)}", show_alert=True)
+    
+    @admin_required
+    @log_errors
+    def menu_templates(self, message: types.Message) -> None:
+        """
+        Отображает меню управления шаблонами.
+        
+        Args:
+            message: Сообщение пользователя
+        """
+        try:
+            # Текст с описанием раздела шаблонов
+            text = (
+                f"{EMOJI['template']} <b>Управление шаблонами уведомлений</b>\n\n"
+                f"В этом разделе вы можете управлять шаблонами уведомлений:\n"
+                f"• Просматривать список шаблонов\n"
+                f"• Добавлять новые шаблоны\n"
+                f"• Обновлять существующие шаблоны\n"
+                f"• Удалять шаблоны\n"
+                f"• Активировать/деактивировать шаблоны\n"
+                f"• Просматривать и тестировать шаблоны\n\n"
+                f"Выберите действие:"
+            )
+            
+            # Создаем клавиатуру с кнопками для управления шаблонами
+            keyboard = types.InlineKeyboardMarkup(row_width=2)
+            
+            # Кнопки для основных действий с шаблонами
+            list_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['list']} Список шаблонов", 
+                callback_data="cmd_templates_list"
+            )
+            add_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['plus']} Добавить шаблон", 
+                callback_data="cmd_add_template"
+            )
+            update_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['edit']} Изменить шаблон", 
+                callback_data="cmd_update_template"
+            )
+            remove_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['minus']} Удалить шаблон", 
+                callback_data="cmd_remove_template"
+            )
+            
+            # Кнопки для дополнительных действий
+            preview_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['eye']} Предпросмотр", 
+                callback_data="cmd_preview_template"
+            )
+            test_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['test']} Тестировать", 
+                callback_data="cmd_test_template"
+            )
+            activate_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['check']} Активировать", 
+                callback_data="cmd_activate_template"
+            )
+            deactivate_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['cross']} Деактивировать", 
+                callback_data="cmd_deactivate_template"
+            )
+            
+            # Кнопка справки
+            help_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['help']} Справка", 
+                callback_data="cmd_template_help"
+            )
+            
+            # Кнопка возврата в главное меню
+            back_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['back']} В главное меню", 
+                callback_data="menu_main"
+            )
+            
+            # Добавляем кнопки в клавиатуру
+            keyboard.add(list_btn, add_btn)
+            keyboard.add(update_btn, remove_btn)
+            keyboard.add(preview_btn, test_btn)
+            keyboard.add(activate_btn, deactivate_btn)
+            keyboard.add(help_btn)
+            keyboard.add(back_btn)
+            
+            # Отправляем сообщение с клавиатурой
+            self.send_message(
+                chat_id=message.chat.id,
+                text=text,
+                reply_markup=keyboard,
+                parse_mode='HTML'
+            )
+            
+        except Exception as e:
+            logger.error(f"Ошибка в обработчике menu_templates: {str(e)}")
+            self.send_message(
+                chat_id=message.chat.id,
+                text=f"{EMOJI['error']} Произошла ошибка: {str(e)}"
+            ) 

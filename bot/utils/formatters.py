@@ -133,4 +133,28 @@ def preview_template(template: str) -> str:
         return format_template(template, SAMPLE_TEMPLATE_DATA)
     except Exception as e:
         logger.error(f"Ошибка создания предварительного просмотра шаблона: {str(e)}")
-        return f"Ошибка форматирования шаблона. Проверьте синтаксис." 
+        return f"Ошибка форматирования шаблона. Проверьте синтаксис."
+
+
+def format_phone_number(phone: str) -> str:
+    """
+    Форматирование номера телефона.
+    
+    Args:
+        phone: Номер телефона в произвольном формате
+        
+    Returns:
+        Отформатированный номер телефона
+    """
+    # Удаляем все нецифровые символы
+    digits_only = ''.join(filter(str.isdigit, phone))
+    
+    # Если длина номера 11 цифр (с кодом страны)
+    if len(digits_only) == 11:
+        return f"+{digits_only[0]} ({digits_only[1:4]}) {digits_only[4:7]}-{digits_only[7:9]}-{digits_only[9:11]}"
+    # Если длина номера 10 цифр (без кода страны)
+    elif len(digits_only) == 10:
+        return f"+7 ({digits_only[0:3]}) {digits_only[3:6]}-{digits_only[6:8]}-{digits_only[8:10]}"
+    # Возвращаем исходный номер, если он не соответствует ожидаемому формату
+    else:
+        return phone 

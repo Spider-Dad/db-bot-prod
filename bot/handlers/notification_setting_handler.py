@@ -47,22 +47,24 @@ class NotificationSettingHandler(BaseHandler):
     def register_handlers(self) -> None:
         """Регистрация обработчиков команд для управления настройками уведомлений."""
         # Команды для работы с настройками уведомлений
-        self.bot.message_handler(commands=['get_settings'])(self.get_settings)
-        self.bot.message_handler(commands=['set_setting'])(self.set_setting)
-        self.bot.message_handler(commands=['update_setting'])(self.update_setting)
-        self.bot.message_handler(commands=['delete_setting'])(self.delete_setting)
-        self.bot.message_handler(commands=['activate_setting'])(self.activate_setting)
-        self.bot.message_handler(commands=['deactivate_setting'])(self.deactivate_setting)
-        self.bot.message_handler(commands=['help_settings'])(self.help_settings)
+        self.bot.register_message_handler(self.get_settings, commands=['get_settings'])
+        self.bot.register_message_handler(self.set_setting, commands=['set_setting'])
+        self.bot.register_message_handler(self.update_setting, commands=['update_setting'])
+        self.bot.register_message_handler(self.delete_setting, commands=['delete_setting'])
+        self.bot.register_message_handler(self.activate_setting, commands=['activate_setting'])
+        self.bot.register_message_handler(self.deactivate_setting, commands=['deactivate_setting'])
+        self.bot.register_message_handler(self.help_settings, commands=['help_settings'])
+        self.bot.register_message_handler(self.menu_settings, commands=['menu_settings'])
         
         # Обработчики callback-запросов для команд
-        self.bot.callback_query_handler(func=lambda call: call.data == 'cmd_get_settings')(self.cmd_get_settings_callback)
-        self.bot.callback_query_handler(func=lambda call: call.data == 'cmd_set_setting')(self.cmd_set_setting_callback)
-        self.bot.callback_query_handler(func=lambda call: call.data == 'cmd_update_setting')(self.cmd_update_setting_callback)
-        self.bot.callback_query_handler(func=lambda call: call.data == 'cmd_delete_setting')(self.cmd_delete_setting_callback)
-        self.bot.callback_query_handler(func=lambda call: call.data == 'cmd_activate_setting')(self.cmd_activate_setting_callback)
-        self.bot.callback_query_handler(func=lambda call: call.data == 'cmd_deactivate_setting')(self.cmd_deactivate_setting_callback)
-        self.bot.callback_query_handler(func=lambda call: call.data == 'cmd_help_settings')(self.cmd_help_settings_callback)
+        self.bot.register_callback_query_handler(self.cmd_get_settings_callback, func=lambda call: call.data == 'cmd_get_settings')
+        self.bot.register_callback_query_handler(self.cmd_set_setting_callback, func=lambda call: call.data == 'cmd_set_setting')
+        self.bot.register_callback_query_handler(self.cmd_update_setting_callback, func=lambda call: call.data == 'cmd_update_setting')
+        self.bot.register_callback_query_handler(self.cmd_delete_setting_callback, func=lambda call: call.data == 'cmd_delete_setting')
+        self.bot.register_callback_query_handler(self.cmd_activate_setting_callback, func=lambda call: call.data == 'cmd_activate_setting')
+        self.bot.register_callback_query_handler(self.cmd_deactivate_setting_callback, func=lambda call: call.data == 'cmd_deactivate_setting')
+        self.bot.register_callback_query_handler(self.cmd_help_settings_callback, func=lambda call: call.data == 'cmd_help_settings')
+        self.bot.register_callback_query_handler(self.menu_settings_callback, func=lambda call: call.data == 'menu_settings')
     
     @admin_required
     @log_errors
@@ -469,17 +471,213 @@ class NotificationSettingHandler(BaseHandler):
         Args:
             message: Сообщение от пользователя
         """
-        help_text = (
-            f"{EMOJI['info']} <b>Справка по командам настроек уведомлений:</b>\n\n"
-            f"/get_settings - Получить список всех настроек уведомлений\n"
-            f"/set_setting [id_шаблона] [дней_до_события] [время_отправки] - Добавить новую настройку\n"
-            f"/update_setting [id] [id_шаблона] [дней_до_события] [время_отправки] - Обновить настройку\n"
-            f"/delete_setting [id] - Удалить настройку\n"
-            f"/activate_setting [id] - Активировать настройку\n"
-            f"/deactivate_setting [id] - Деактивировать настройку\n"
-        )
-        self.send_message(message.chat.id, help_text)
+        text = self._get_help_text()
+        self.send_message(message.chat.id, text, parse_mode='HTML')
         logger.info(f"Отправлена справка по настройкам администратору {message.from_user.id}")
+    
+    @admin_required
+    @log_errors
+    def menu_settings(self, message: types.Message) -> None:
+        """
+        Отображает меню управления настройками уведомлений.
+        
+        Args:
+            message: Сообщение пользователя
+        """
+        try:
+            # Текст с описанием раздела настроек
+            text = (
+                f"{EMOJI['setting']} <b>Управление настройками уведомлений</b>\n\n"
+                f"В этом разделе вы можете управлять настройками уведомлений:\n"
+                f"• Просматривать список настроек\n"
+                f"• Добавлять новые настройки\n"
+                f"• Обновлять существующие настройки\n"
+                f"• Удалять настройки\n"
+                f"• Активировать/деактивировать настройки\n\n"
+                f"Выберите действие:"
+            )
+            
+            # Создаем клавиатуру с кнопками для управления настройками
+            keyboard = types.InlineKeyboardMarkup(row_width=2)
+            
+            # Кнопки для основных действий с настройками
+            list_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['list']} Список настроек", 
+                callback_data="cmd_get_settings"
+            )
+            add_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['plus']} Добавить настройку", 
+                callback_data="cmd_set_setting"
+            )
+            update_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['edit']} Изменить настройку", 
+                callback_data="cmd_update_setting"
+            )
+            remove_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['minus']} Удалить настройку", 
+                callback_data="cmd_delete_setting"
+            )
+            
+            # Кнопки для активации/деактивации
+            activate_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['check']} Активировать", 
+                callback_data="cmd_activate_setting"
+            )
+            deactivate_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['cross']} Деактивировать", 
+                callback_data="cmd_deactivate_setting"
+            )
+            
+            # Кнопка справки
+            help_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['help']} Справка", 
+                callback_data="cmd_help_settings"
+            )
+            
+            # Кнопка возврата в главное меню
+            back_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['back']} В главное меню", 
+                callback_data="menu_main"
+            )
+            
+            # Добавляем кнопки в клавиатуру
+            keyboard.add(list_btn, add_btn)
+            keyboard.add(update_btn, remove_btn)
+            keyboard.add(activate_btn, deactivate_btn)
+            keyboard.add(help_btn)
+            keyboard.add(back_btn)
+            
+            # Отправляем сообщение с клавиатурой
+            self.send_message(
+                chat_id=message.chat.id,
+                text=text,
+                reply_markup=keyboard,
+                parse_mode='HTML'
+            )
+            
+        except Exception as e:
+            logger.error(f"Ошибка в обработчике menu_settings: {str(e)}")
+            self.send_message(
+                chat_id=message.chat.id,
+                text=f"{EMOJI['error']} Произошла ошибка: {str(e)}"
+            )
+    
+    @log_errors
+    def menu_settings_callback(self, call: types.CallbackQuery) -> None:
+        """
+        Обработчик callback-запроса для меню настроек уведомлений.
+        
+        Args:
+            call: Callback-запрос от кнопки
+        """
+        try:
+            # Проверяем права администратора
+            if not self.is_admin(call.from_user.id):
+                self.answer_callback_query(call.id, "У вас нет прав администратора", show_alert=True)
+                return
+            
+            # Текст с описанием раздела настроек
+            text = (
+                f"{EMOJI['setting']} <b>Управление настройками уведомлений</b>\n\n"
+                f"В этом разделе вы можете управлять настройками уведомлений:\n"
+                f"• Просматривать список настроек\n"
+                f"• Добавлять новые настройки\n"
+                f"• Обновлять существующие настройки\n"
+                f"• Удалять настройки\n"
+                f"• Активировать/деактивировать настройки\n\n"
+                f"Выберите действие:"
+            )
+            
+            # Создаем клавиатуру с кнопками для управления настройками
+            keyboard = types.InlineKeyboardMarkup(row_width=2)
+            
+            # Кнопки для основных действий с настройками
+            list_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['list']} Список настроек", 
+                callback_data="cmd_get_settings"
+            )
+            add_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['plus']} Добавить настройку", 
+                callback_data="cmd_set_setting"
+            )
+            update_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['edit']} Изменить настройку", 
+                callback_data="cmd_update_setting"
+            )
+            remove_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['minus']} Удалить настройку", 
+                callback_data="cmd_delete_setting"
+            )
+            
+            # Кнопки для активации/деактивации
+            activate_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['check']} Активировать", 
+                callback_data="cmd_activate_setting"
+            )
+            deactivate_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['cross']} Деактивировать", 
+                callback_data="cmd_deactivate_setting"
+            )
+            
+            # Кнопка справки
+            help_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['help']} Справка", 
+                callback_data="cmd_help_settings"
+            )
+            
+            # Кнопка возврата в главное меню
+            back_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['back']} В главное меню", 
+                callback_data="menu_main"
+            )
+            
+            # Добавляем кнопки в клавиатуру
+            keyboard.add(list_btn, add_btn)
+            keyboard.add(update_btn, remove_btn)
+            keyboard.add(activate_btn, deactivate_btn)
+            keyboard.add(help_btn)
+            keyboard.add(back_btn)
+            
+            # Обновляем сообщение
+            self.bot.edit_message_text(
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                text=text,
+                reply_markup=keyboard,
+                parse_mode='HTML'
+            )
+            
+            # Отвечаем на callback-запрос
+            self.answer_callback_query(call.id)
+            
+        except Exception as e:
+            logger.error(f"Ошибка в обработчике callback-запроса menu_settings: {str(e)}")
+            self.answer_callback_query(call.id, f"Ошибка: {str(e)}", show_alert=True)
+    
+    def _get_help_text(self) -> str:
+        """
+        Формирует справочный текст по настройкам уведомлений.
+        
+        Returns:
+            str: Справочный текст
+        """
+        return (
+            f"{EMOJI['help']} <b>Справка по настройкам уведомлений</b>\n\n"
+            f"<b>Доступные команды:</b>\n\n"
+            f"/get_settings - получить список всех настроек\n"
+            f"/set_setting [id_шаблона] [дней_до_события] [время_отправки] - добавить настройку\n"
+            f"/update_setting [id] [id_шаблона] [дней_до_события] [время_отправки] - обновить настройку\n"
+            f"/delete_setting [id] - удалить настройку\n"
+            f"/activate_setting [id] - активировать настройку\n"
+            f"/deactivate_setting [id] - деактивировать настройку\n"
+            f"/help_settings - показать эту справку\n\n"
+            f"<b>Примеры:</b>\n\n"
+            f"/set_setting 1 2 15:00 - создать настройку для шаблона #1, за 2 дня до события, отправлять в 15:00\n"
+            f"/update_setting 3 2 1 10:30 - обновить настройку #3, установить шаблон #2, за 1 день, время 10:30\n"
+            f"/delete_setting 2 - удалить настройку #2\n"
+            f"/activate_setting 1 - активировать настройку #1\n"
+            f"/deactivate_setting 3 - деактивировать настройку #3"
+        )
 
     # Обработчики callback-запросов
     
@@ -489,10 +687,65 @@ class NotificationSettingHandler(BaseHandler):
         Обработчик callback-запроса для команды get_settings.
         
         Args:
-            call: Callback-запрос
+            call: Callback-запрос от кнопки
         """
-        self.bot.answer_callback_query(call.id)
-        self.get_settings(call.message)
+        try:
+            # Проверяем права администратора
+            if not self.is_admin(call.from_user.id):
+                self.answer_callback_query(call.id, "У вас нет прав администратора", show_alert=True)
+                return
+            
+            # Получаем все настройки с информацией о шаблонах
+            settings = self.setting_service.get_settings_with_templates()
+            
+            if not settings:
+                text = f"{EMOJI['info']} В системе нет настроек уведомлений."
+            else:
+                # Формируем сообщение со списком настроек
+                text = f"{EMOJI['setting']} <b>Список настроек уведомлений ({len(settings)}):</b>\n\n"
+                
+                for setting in settings:
+                    setting_id = setting.get('id')
+                    template_id = setting.get('template_id')
+                    template_name = setting.get('template_name', 'Неизвестный шаблон')
+                    days_before = setting.get('days_before', 0)
+                    time_str = setting.get('time', '12:00')
+                    is_active = setting.get('is_active', True)
+                    
+                    status_emoji = EMOJI['active'] if is_active else EMOJI['inactive']
+                    
+                    setting_text = (
+                        f"{status_emoji} <b>ID {setting_id}</b>\n"
+                        f"Шаблон: {template_name} (ID: {template_id})\n"
+                        f"Дней до события: {days_before}\n"
+                        f"Время отправки: {time_str}\n\n"
+                    )
+                    
+                    text += setting_text
+            
+            # Создаем клавиатуру с кнопкой "Назад"
+            keyboard = types.InlineKeyboardMarkup()
+            back_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['back']} Назад", 
+                callback_data="menu_settings"
+            )
+            keyboard.add(back_btn)
+            
+            # Обновляем сообщение
+            self.bot.edit_message_text(
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                text=text,
+                reply_markup=keyboard,
+                parse_mode='HTML'
+            )
+            
+            # Отвечаем на callback-запрос
+            self.answer_callback_query(call.id)
+            
+        except Exception as e:
+            logger.error(f"Ошибка в обработчике callback-запроса cmd_get_settings: {str(e)}")
+            self.answer_callback_query(call.id, f"Ошибка: {str(e)}", show_alert=True)
     
     @log_errors
     def cmd_set_setting_callback(self, call: types.CallbackQuery) -> None:
@@ -500,14 +753,55 @@ class NotificationSettingHandler(BaseHandler):
         Обработчик callback-запроса для команды set_setting.
         
         Args:
-            call: Callback-запрос
+            call: Callback-запрос от кнопки
         """
-        self.bot.answer_callback_query(call.id)
-        self.send_message(
-            call.message.chat.id,
-            f"{EMOJI['info']} Введите команду в формате: <code>/set_setting [id_шаблона] [дней_до_события] [время_отправки]</code>\n\n"
-            f"Например: <code>/set_setting 1 1 12:00</code>"
-        )
+        try:
+            # Проверяем права администратора
+            if not self.is_admin(call.from_user.id):
+                self.answer_callback_query(call.id, "У вас нет прав администратора", show_alert=True)
+                return
+            
+            # Текст с инструкцией по добавлению настройки
+            text = (
+                f"{EMOJI['plus']} <b>Добавление настройки уведомления</b>\n\n"
+                f"Для добавления настройки отправьте команду в формате:\n"
+                f"<code>/set_setting [id_шаблона] [дней_до_события] [время_отправки]</code>\n\n"
+                f"Например:\n"
+                f"<code>/set_setting 1 1 12:00</code>\n\n"
+                f"где:\n"
+                f"• id_шаблона - ID шаблона уведомления\n"
+                f"• дней_до_события - за сколько дней до события отправлять\n"
+                f"• время_отправки - время отправки в формате ЧЧ:ММ"
+            )
+            
+            # Создаем клавиатуру с кнопками "Список шаблонов" и "Назад"
+            keyboard = types.InlineKeyboardMarkup()
+            templates_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['template']} Список шаблонов", 
+                callback_data="cmd_templates_list"
+            )
+            back_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['back']} Назад", 
+                callback_data="menu_settings"
+            )
+            keyboard.add(templates_btn)
+            keyboard.add(back_btn)
+            
+            # Обновляем сообщение
+            self.bot.edit_message_text(
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                text=text,
+                reply_markup=keyboard,
+                parse_mode='HTML'
+            )
+            
+            # Отвечаем на callback-запрос
+            self.answer_callback_query(call.id)
+            
+        except Exception as e:
+            logger.error(f"Ошибка в обработчике callback-запроса cmd_set_setting: {str(e)}")
+            self.answer_callback_query(call.id, f"Ошибка: {str(e)}", show_alert=True)
     
     @log_errors
     def cmd_update_setting_callback(self, call: types.CallbackQuery) -> None:
@@ -515,14 +809,56 @@ class NotificationSettingHandler(BaseHandler):
         Обработчик callback-запроса для команды update_setting.
         
         Args:
-            call: Callback-запрос
+            call: Callback-запрос от кнопки
         """
-        self.bot.answer_callback_query(call.id)
-        self.send_message(
-            call.message.chat.id,
-            f"{EMOJI['info']} Введите команду в формате: <code>/update_setting [id] [id_шаблона] [дней_до_события] [время_отправки]</code>\n\n"
-            f"Например: <code>/update_setting 1 2 3 15:30</code>"
-        )
+        try:
+            # Проверяем права администратора
+            if not self.is_admin(call.from_user.id):
+                self.answer_callback_query(call.id, "У вас нет прав администратора", show_alert=True)
+                return
+            
+            # Текст с инструкцией по обновлению настройки
+            text = (
+                f"{EMOJI['edit']} <b>Обновление настройки уведомления</b>\n\n"
+                f"Для обновления настройки отправьте команду в формате:\n"
+                f"<code>/update_setting [id] [id_шаблона] [дней_до_события] [время_отправки]</code>\n\n"
+                f"Например:\n"
+                f"<code>/update_setting 1 2 3 15:30</code>\n\n"
+                f"где:\n"
+                f"• id - ID настройки\n"
+                f"• id_шаблона - новый ID шаблона уведомления\n"
+                f"• дней_до_события - новое значение дней до события\n"
+                f"• время_отправки - новое время отправки в формате ЧЧ:ММ"
+            )
+            
+            # Создаем клавиатуру с кнопками "Список настроек" и "Назад"
+            keyboard = types.InlineKeyboardMarkup()
+            list_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['list']} Список настроек", 
+                callback_data="cmd_get_settings"
+            )
+            back_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['back']} Назад", 
+                callback_data="menu_settings"
+            )
+            keyboard.add(list_btn)
+            keyboard.add(back_btn)
+            
+            # Обновляем сообщение
+            self.bot.edit_message_text(
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                text=text,
+                reply_markup=keyboard,
+                parse_mode='HTML'
+            )
+            
+            # Отвечаем на callback-запрос
+            self.answer_callback_query(call.id)
+            
+        except Exception as e:
+            logger.error(f"Ошибка в обработчике callback-запроса cmd_update_setting: {str(e)}")
+            self.answer_callback_query(call.id, f"Ошибка: {str(e)}", show_alert=True)
     
     @log_errors
     def cmd_delete_setting_callback(self, call: types.CallbackQuery) -> None:
@@ -530,14 +866,52 @@ class NotificationSettingHandler(BaseHandler):
         Обработчик callback-запроса для команды delete_setting.
         
         Args:
-            call: Callback-запрос
+            call: Callback-запрос от кнопки
         """
-        self.bot.answer_callback_query(call.id)
-        self.send_message(
-            call.message.chat.id,
-            f"{EMOJI['info']} Введите команду в формате: <code>/delete_setting [id]</code>\n\n"
-            f"Например: <code>/delete_setting 1</code>"
-        )
+        try:
+            # Проверяем права администратора
+            if not self.is_admin(call.from_user.id):
+                self.answer_callback_query(call.id, "У вас нет прав администратора", show_alert=True)
+                return
+            
+            # Текст с инструкцией по удалению настройки
+            text = (
+                f"{EMOJI['minus']} <b>Удаление настройки уведомления</b>\n\n"
+                f"Для удаления настройки отправьте команду в формате:\n"
+                f"<code>/delete_setting [id]</code>\n\n"
+                f"Например:\n"
+                f"<code>/delete_setting 1</code>\n\n"
+                f"Для получения ID настройки используйте команду /get_settings или нажмите кнопку «Список настроек»."
+            )
+            
+            # Создаем клавиатуру с кнопками "Список настроек" и "Назад"
+            keyboard = types.InlineKeyboardMarkup()
+            list_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['list']} Список настроек", 
+                callback_data="cmd_get_settings"
+            )
+            back_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['back']} Назад", 
+                callback_data="menu_settings"
+            )
+            keyboard.add(list_btn)
+            keyboard.add(back_btn)
+            
+            # Обновляем сообщение
+            self.bot.edit_message_text(
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                text=text,
+                reply_markup=keyboard,
+                parse_mode='HTML'
+            )
+            
+            # Отвечаем на callback-запрос
+            self.answer_callback_query(call.id)
+            
+        except Exception as e:
+            logger.error(f"Ошибка в обработчике callback-запроса cmd_delete_setting: {str(e)}")
+            self.answer_callback_query(call.id, f"Ошибка: {str(e)}", show_alert=True)
     
     @log_errors
     def cmd_activate_setting_callback(self, call: types.CallbackQuery) -> None:
@@ -545,14 +919,52 @@ class NotificationSettingHandler(BaseHandler):
         Обработчик callback-запроса для команды activate_setting.
         
         Args:
-            call: Callback-запрос
+            call: Callback-запрос от кнопки
         """
-        self.bot.answer_callback_query(call.id)
-        self.send_message(
-            call.message.chat.id,
-            f"{EMOJI['info']} Введите команду в формате: <code>/activate_setting [id]</code>\n\n"
-            f"Например: <code>/activate_setting 1</code>"
-        )
+        try:
+            # Проверяем права администратора
+            if not self.is_admin(call.from_user.id):
+                self.answer_callback_query(call.id, "У вас нет прав администратора", show_alert=True)
+                return
+            
+            # Текст с инструкцией по активации настройки
+            text = (
+                f"{EMOJI['check']} <b>Активация настройки уведомления</b>\n\n"
+                f"Для активации настройки отправьте команду в формате:\n"
+                f"<code>/activate_setting [id]</code>\n\n"
+                f"Например:\n"
+                f"<code>/activate_setting 1</code>\n\n"
+                f"Для получения ID настройки используйте команду /get_settings или нажмите кнопку «Список настроек»."
+            )
+            
+            # Создаем клавиатуру с кнопками "Список настроек" и "Назад"
+            keyboard = types.InlineKeyboardMarkup()
+            list_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['list']} Список настроек", 
+                callback_data="cmd_get_settings"
+            )
+            back_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['back']} Назад", 
+                callback_data="menu_settings"
+            )
+            keyboard.add(list_btn)
+            keyboard.add(back_btn)
+            
+            # Обновляем сообщение
+            self.bot.edit_message_text(
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                text=text,
+                reply_markup=keyboard,
+                parse_mode='HTML'
+            )
+            
+            # Отвечаем на callback-запрос
+            self.answer_callback_query(call.id)
+            
+        except Exception as e:
+            logger.error(f"Ошибка в обработчике callback-запроса cmd_activate_setting: {str(e)}")
+            self.answer_callback_query(call.id, f"Ошибка: {str(e)}", show_alert=True)
     
     @log_errors
     def cmd_deactivate_setting_callback(self, call: types.CallbackQuery) -> None:
@@ -560,14 +972,52 @@ class NotificationSettingHandler(BaseHandler):
         Обработчик callback-запроса для команды deactivate_setting.
         
         Args:
-            call: Callback-запрос
+            call: Callback-запрос от кнопки
         """
-        self.bot.answer_callback_query(call.id)
-        self.send_message(
-            call.message.chat.id,
-            f"{EMOJI['info']} Введите команду в формате: <code>/deactivate_setting [id]</code>\n\n"
-            f"Например: <code>/deactivate_setting 1</code>"
-        )
+        try:
+            # Проверяем права администратора
+            if not self.is_admin(call.from_user.id):
+                self.answer_callback_query(call.id, "У вас нет прав администратора", show_alert=True)
+                return
+            
+            # Текст с инструкцией по деактивации настройки
+            text = (
+                f"{EMOJI['cross']} <b>Деактивация настройки уведомления</b>\n\n"
+                f"Для деактивации настройки отправьте команду в формате:\n"
+                f"<code>/deactivate_setting [id]</code>\n\n"
+                f"Например:\n"
+                f"<code>/deactivate_setting 1</code>\n\n"
+                f"Для получения ID настройки используйте команду /get_settings или нажмите кнопку «Список настроек»."
+            )
+            
+            # Создаем клавиатуру с кнопками "Список настроек" и "Назад"
+            keyboard = types.InlineKeyboardMarkup()
+            list_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['list']} Список настроек", 
+                callback_data="cmd_get_settings"
+            )
+            back_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['back']} Назад", 
+                callback_data="menu_settings"
+            )
+            keyboard.add(list_btn)
+            keyboard.add(back_btn)
+            
+            # Обновляем сообщение
+            self.bot.edit_message_text(
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                text=text,
+                reply_markup=keyboard,
+                parse_mode='HTML'
+            )
+            
+            # Отвечаем на callback-запрос
+            self.answer_callback_query(call.id)
+            
+        except Exception as e:
+            logger.error(f"Ошибка в обработчике callback-запроса cmd_deactivate_setting: {str(e)}")
+            self.answer_callback_query(call.id, f"Ошибка: {str(e)}", show_alert=True)
     
     @log_errors
     def cmd_help_settings_callback(self, call: types.CallbackQuery) -> None:
@@ -575,7 +1025,32 @@ class NotificationSettingHandler(BaseHandler):
         Обработчик callback-запроса для команды help_settings.
         
         Args:
-            call: Callback-запрос
+            call: Callback-запрос от кнопки
         """
-        self.bot.answer_callback_query(call.id)
-        self.help_settings(call.message) 
+        try:
+            # Справка по настройкам уведомлений
+            text = self._get_help_text()
+            
+            # Создаем клавиатуру с кнопкой "Назад"
+            keyboard = types.InlineKeyboardMarkup()
+            back_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['back']} Назад", 
+                callback_data="menu_settings"
+            )
+            keyboard.add(back_btn)
+            
+            # Обновляем сообщение
+            self.bot.edit_message_text(
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                text=text,
+                reply_markup=keyboard,
+                parse_mode='HTML'
+            )
+            
+            # Отвечаем на callback-запрос
+            self.answer_callback_query(call.id)
+            
+        except Exception as e:
+            logger.error(f"Ошибка в обработчике callback-запроса cmd_help_settings: {str(e)}")
+            self.answer_callback_query(call.id, f"Ошибка: {str(e)}", show_alert=True) 

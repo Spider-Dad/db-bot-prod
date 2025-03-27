@@ -12,6 +12,7 @@ import re
 
 from bot.core.models import User
 from config import ADMIN_IDS
+from bot.utils.keyboard_manager import KeyboardManager
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,7 @@ class BaseHandler:
             bot: Экземпляр бота Telegram
         """
         self.bot = bot
+        self.keyboard_manager = KeyboardManager()
         
     def register_handlers(self) -> None:
         """
@@ -56,7 +58,7 @@ class BaseHandler:
                     reply_markup: Optional[Union[telebot.types.InlineKeyboardMarkup, 
                             telebot.types.ReplyKeyboardMarkup, 
                             telebot.types.ReplyKeyboardRemove, 
-                            telebot.types.ForceReply]] = None) -> None:
+                            telebot.types.ForceReply]] = None) -> Optional[telebot.types.Message]:
         """
         Отправка сообщения с обработкой ошибок.
         
@@ -65,9 +67,12 @@ class BaseHandler:
             text: Текст сообщения
             parse_mode: Режим парсинга текста ('HTML', 'Markdown')
             reply_markup: Разметка клавиатуры (опционально)
+            
+        Returns:
+            Optional[telebot.types.Message]: Объект отправленного сообщения или None в случае ошибки
         """
         try:
-            self.bot.send_message(
+            return self.bot.send_message(
                 chat_id=chat_id,
                 text=text,
                 parse_mode=parse_mode,
@@ -75,6 +80,67 @@ class BaseHandler:
             )
         except Exception as e:
             logger.error(f"Ошибка отправки сообщения пользователю {chat_id}: {str(e)}")
+            return None
+    
+    def edit_message_text(self, text: str, chat_id: int = None, message_id: int = None, 
+                         inline_message_id: str = None, parse_mode: str = 'HTML',
+                         reply_markup: Optional[telebot.types.InlineKeyboardMarkup] = None) -> bool:
+        """
+        Редактирование текста сообщения с обработкой ошибок.
+        
+        Args:
+            text: Новый текст сообщения
+            chat_id: Идентификатор чата (опционально)
+            message_id: Идентификатор сообщения (опционально)
+            inline_message_id: Идентификатор инлайн-сообщения (опционально)
+            parse_mode: Режим парсинга текста ('HTML', 'Markdown')
+            reply_markup: Разметка клавиатуры (опционально)
+            
+        Returns:
+            bool: True, если редактирование успешно, иначе False
+        """
+        try:
+            self.bot.edit_message_text(
+                text=text,
+                chat_id=chat_id,
+                message_id=message_id,
+                inline_message_id=inline_message_id,
+                parse_mode=parse_mode,
+                reply_markup=reply_markup
+            )
+            return True
+        except Exception as e:
+            logger.error(f"Ошибка редактирования сообщения: {str(e)}")
+            return False
+    
+    def answer_callback_query(self, callback_query_id: str, text: str = None, 
+                             show_alert: bool = False, url: str = None, 
+                             cache_time: int = 0) -> bool:
+        """
+        Ответ на callback-запрос с обработкой ошибок.
+        
+        Args:
+            callback_query_id: Идентификатор callback-запроса
+            text: Текст уведомления (опционально)
+            show_alert: Показывать как оповещение (опционально)
+            url: URL для перехода (опционально)
+            cache_time: Время кэширования (опционально)
+            
+        Returns:
+            bool: True, если ответ успешен, иначе False
+        """
+        try:
+            self.bot.answer_callback_query(
+                callback_query_id=callback_query_id,
+                text=text,
+                show_alert=show_alert,
+                url=url,
+                cache_time=cache_time
+            )
+            return True
+        except Exception as e:
+            logger.error(f"Ошибка ответа на callback-запрос: {str(e)}")
+            return False
     
     def extract_command_args(self, text: str, expected_args_count: Optional[int] = None) -> List[str]:
         """
@@ -144,4 +210,40 @@ class BaseHandler:
         match = re.search(r'@([a-zA-Z0-9_]+)', text)
         if match:
             return match.group(1)
-        return None 
+        return None
+    
+    def send_main_menu(self, chat_id: int, is_admin: bool = False, text: str = None) -> None:
+        """
+        Отправляет главное меню бота.
+        
+        Args:
+            chat_id: Идентификатор чата
+            is_admin: Является ли пользователь администратором
+            text: Текст сообщения (опционально)
+        """
+        if not text:
+            text = "📋 <b>Главное меню</b>\n\nВыберите действие:"
+        
+        keyboard = self.keyboard_manager.create_main_menu(is_admin)
+        self.send_message(chat_id, text, reply_markup=keyboard)
+    
+    def update_menu(self, callback_query: telebot.types.CallbackQuery, new_text: str, 
+                   new_markup: telebot.types.InlineKeyboardMarkup) -> None:
+        """
+        Обновляет текущее меню.
+        
+        Args:
+            callback_query: Объект callback-запроса
+            new_text: Новый текст сообщения
+            new_markup: Новая клавиатура
+        """
+        try:
+            self.bot.edit_message_text(
+                chat_id=callback_query.message.chat.id,
+                message_id=callback_query.message.message_id,
+                text=new_text,
+                reply_markup=new_markup,
+                parse_mode='HTML'
+            )
+        except Exception as e:
+            logger.error(f"Ошибка обновления меню: {str(e)}") 

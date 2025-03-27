@@ -15,7 +15,7 @@ from bot.constants import ALLOWED_HTML_TAGS, TEMPLATE_VARIABLES
 logger = logging.getLogger(__name__)
 
 
-def validate_html_tags(text: str) -> Tuple[bool, Optional[List[str]]]:
+def validate_html(text: str) -> Tuple[bool, Optional[List[str]]]:
     """
     Проверка HTML-тегов в тексте.
     
@@ -103,4 +103,42 @@ def validate_time_format(time_str: str) -> bool:
         datetime.strptime(time_str, "%H:%M")
         return True
     except ValueError:
-        return False 
+        return False
+
+
+def validate_birth_date(date_str: str) -> Tuple[bool, Optional[str]]:
+    """
+    Проверка даты рождения.
+    
+    Проверяет, что строка содержит валидную дату рождения в формате ДД.ММ.ГГГГ,
+    и что эта дата не находится в будущем.
+    
+    Args:
+        date_str: Строка с датой рождения
+        
+    Returns:
+        Кортеж (is_valid, error_message), где:
+        - is_valid: True, если дата корректна
+        - error_message: сообщение об ошибке или None, если is_valid = True
+    """
+    # Проверяем формат даты
+    if not validate_date_format(date_str):
+        return False, "Неверный формат даты. Используйте формат ДД.ММ.ГГГГ."
+    
+    try:
+        # Парсим дату
+        birth_date = datetime.strptime(date_str, "%d.%m.%Y").date()
+        
+        # Проверяем, что дата не в будущем
+        current_date = datetime.now().date()
+        if birth_date > current_date:
+            return False, "Дата рождения не может быть в будущем."
+        
+        # Проверяем, что дата не слишком далеко в прошлом (например, больше 150 лет назад)
+        years_diff = (current_date.year - birth_date.year)
+        if years_diff > 150:
+            return False, "Указанная дата рождения слишком давняя."
+        
+        return True, None
+    except ValueError:
+        return False, "Неверный формат даты. Используйте формат ДД.ММ.ГГГГ." 
