@@ -316,7 +316,7 @@ class DatabaseManager:
             
     def list_backups(self) -> List[str]:
         """
-        Получение списка резервных копий.
+        Получение списка путей к файлам резервных копий.
         
         Returns:
             List[str]: Список путей к файлам резервных копий
@@ -328,6 +328,154 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Ошибка получения списка резервных копий: {str(e)}")
             return []
+    
+    def get_backup_list(self) -> List[dict]:
+        """
+        Получение списка резервных копий с информацией о них.
+        
+        Returns:
+            List[dict]: Список словарей с информацией о резервных копиях
+        """
+        try:
+            # Получаем список файлов резервных копий
+            backup_files = []
+            
+            # Смотрим все .db файлы в директории резервных копий
+            for f in os.listdir(self.backup_dir):
+                if f.endswith(".db") and (f != "birthday_bot.db"):  # Исключаем основной файл БД
+                    try:
+                        file_path = os.path.join(self.backup_dir, f)
+                        file_stats = os.stat(file_path)
+                        
+                        # Получаем дату создания файла из метаданных файловой системы
+                        created_at = datetime.fromtimestamp(file_stats.st_ctime)
+                        
+                        # Получаем размер файла
+                        size = file_stats.st_size
+                        
+                        backup_files.append({
+                            'filename': f,
+                            'path': file_path,
+                            'created_at': created_at,
+                            'size': size
+                        })
+                    except (ValueError, OSError) as e:
+                        logger.warning(f"Ошибка при обработке файла резервной копии {f}: {str(e)}")
+            
+            # Сортируем резервные копии по дате создания (новые в начале)
+            backup_files.sort(key=lambda x: x['created_at'], reverse=True)
+            return backup_files
+            
+        except Exception as e:
+            logger.error(f"Ошибка получения информации о резервных копиях: {str(e)}")
+            return []
+    
+    def get_backup_path(self, backup_name: str) -> Optional[str]:
+        """
+        Получение полного пути к файлу резервной копии.
+        
+        Args:
+            backup_name: Имя файла резервной копии
+            
+        Returns:
+            str: Полный путь к файлу резервной копии или None, если файл не найден
+        """
+        try:
+            # Формируем полный путь
+            backup_path = os.path.join(self.backup_dir, backup_name)
+            
+            # Проверяем существование файла
+            if not os.path.exists(backup_path) or not os.path.isfile(backup_path):
+                logger.warning(f"Файл резервной копии не найден: {backup_path}")
+                return None
+                
+            return backup_path
+            
+        except Exception as e:
+            logger.error(f"Ошибка получения пути к резервной копии: {str(e)}")
+            return None
+    
+    def backup_exists(self, backup_name: str) -> bool:
+        """
+        Проверка существования файла резервной копии.
+        
+        Args:
+            backup_name: Имя файла резервной копии
+            
+        Returns:
+            bool: True, если файл существует, иначе False
+        """
+        try:
+            backup_path = os.path.join(self.backup_dir, backup_name)
+            return os.path.exists(backup_path) and os.path.isfile(backup_path)
+        except Exception as e:
+            logger.error(f"Ошибка проверки существования резервной копии: {str(e)}")
+            return False
+    
+    def delete_backup(self, backup_name: str) -> bool:
+        """
+        Удаление файла резервной копии.
+        
+        Args:
+            backup_name: Имя файла резервной копии
+            
+        Returns:
+            bool: True, если файл успешно удален, иначе False
+        """
+        try:
+            backup_path = os.path.join(self.backup_dir, backup_name)
+            
+            # Проверяем существование файла
+            if not os.path.exists(backup_path) or not os.path.isfile(backup_path):
+                logger.warning(f"Файл резервной копии не найден: {backup_path}")
+                return False
+                
+            # Удаляем файл
+            os.remove(backup_path)
+            logger.info(f"Файл резервной копии удален: {backup_path}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Ошибка удаления резервной копии: {str(e)}")
+            return False
+            
+    def backup_database(self, comment: str = None) -> Optional[str]:
+        """
+        Создание резервной копии базы данных.
+        
+        Args:
+            comment: Комментарий к резервной копии (не используется в текущей реализации)
+            
+        Returns:
+            str: Полный путь к файлу резервной копии или None в случае ошибки
+        """
+        return self.create_backup()
+        
+    def save_uploaded_backup(self, file_content: bytes, filename: str) -> Optional[str]:
+        """
+        Сохранение загруженной резервной копии.
+        
+        Args:
+            file_content: Содержимое файла резервной копии
+            filename: Имя файла резервной копии
+            
+        Returns:
+            str: Полный путь к сохраненному файлу или None в случае ошибки
+        """
+        try:
+            # Формируем путь для сохранения файла
+            backup_path = os.path.join(self.backup_dir, filename)
+            
+            # Сохраняем файл
+            with open(backup_path, 'wb') as f:
+                f.write(file_content)
+                
+            logger.info(f"Загруженная резервная копия сохранена: {backup_path}")
+            return backup_path
+            
+        except Exception as e:
+            logger.error(f"Ошибка сохранения загруженной резервной копии: {str(e)}")
+            return None
             
     def restore_from_backup(self, backup_path: str) -> bool:
         """

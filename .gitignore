@@ -28,9 +28,8 @@ ENV/
 .env
 
 # База данных и резервные копии
-# *.db
-# *.db-journal
-# data/backups/
+*.db
+*.db-journal
 
 # Логи
 *.log
@@ -45,3 +44,4 @@ ENV/
 
 # Локальная папка с данными
 /data/
+data/

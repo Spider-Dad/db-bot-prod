@@ -75,6 +75,8 @@ EMOJI = {
     "error": "❌",
     "success": "✅",
     "info": "ℹ️",
+    "process": "⏳",
+    "loading": "⏳",
     
     # Категории
     "birthday": "🎂",

@@ -99,7 +99,7 @@ def main():
             TemplateHandler(bot, template_service, user_service, setting_service),
             NotificationSettingHandler(bot, setting_service, template_service),
             NotificationLogHandler(bot, log_service),
-            BackupHandler(bot, backup_service),
+            BackupHandler(bot, backup_service, user_service),
             GameHandler(bot, user_service)
         ]
         
