@@ -49,7 +49,7 @@ class UserHandler(BaseHandler):
         self.bot.register_message_handler(self.list_birthdays, commands=['birthdays'])
         self.bot.register_message_handler(self.add_user, commands=['add_user'])
         self.bot.register_message_handler(self.remove_user, commands=['remove_user'])
-        self.bot.register_message_handler(self.get_users_directory, commands=['users', 'users_directory'])
+        self.bot.register_message_handler(self.get_users_directory, commands=['users', 'users_directory', 'get_users_directory'])
         self.bot.register_message_handler(self.set_admin, commands=['set_admin'])
         self.bot.register_message_handler(self.remove_admin, commands=['remove_admin'])
         
@@ -180,11 +180,24 @@ class UserHandler(BaseHandler):
             args = self.extract_command_args(message.text)
             
             if not args:
+                # Создаем клавиатуру с кнопкой "Назад"
+                keyboard = types.InlineKeyboardMarkup()
+                back_btn = types.InlineKeyboardButton(
+                    text=f"{EMOJI['back']} Назад", 
+                    callback_data="menu_users"
+                )
+                keyboard.add(back_btn)
+                
+                # Отправляем информационное сообщение
                 self.send_message(
                     message.chat.id, 
-                    f"{EMOJI['error']} <b>Ошибка:</b> Неверный формат команды.\n\n"
-                    f"Используйте: <code>/add_user @username [имя] [фамилия] [день рождения в формате ДД.ММ.ГГГГ]</code>\n\n"
-                    f"Например: <code>/add_user @username Иван Иванов 01.01.1990</code>"
+                    f"{EMOJI['plus']} <b>Добавление пользователя</b>\n\n"
+                    f"Для добавления пользователя отправьте команду в формате:\n"
+                    f"<code>/add_user @username Имя Фамилия ДД.ММ.ГГГГ</code>\n\n"
+                    f"Например:\n"
+                    f"<code>/add_user @username Иван Иванов 01.01.1990</code>\n\n"
+                    f"После добавления пользователь будет доступен в справочнике и получать уведомления.",
+                    reply_markup=keyboard
                 )
                 return
             
@@ -269,9 +282,18 @@ class UserHandler(BaseHandler):
             users = self.user_service.get_all_users()
             
             if not users:
+                # Создаем клавиатуру с кнопкой "Назад"
+                keyboard = types.InlineKeyboardMarkup()
+                back_btn = types.InlineKeyboardButton(
+                    text=f"{EMOJI['back']} Назад", 
+                    callback_data="menu_users"
+                )
+                keyboard.add(back_btn)
+                
                 self.send_message(
                     message.chat.id,
-                    f"{EMOJI['info']} В справочнике нет пользователей."
+                    f"{EMOJI['info']} В справочнике нет пользователей.",
+                    reply_markup=keyboard
                 )
                 return
             
@@ -338,7 +360,15 @@ class UserHandler(BaseHandler):
                     users_text += f"• Рассылка: {'✅' if user.is_notifications_enabled else '❌'}\n"
                     users_text += f"• Telegram ID: {user.telegram_id}\n\n"
             
-            self.send_message(message.chat.id, users_text)
+            # Создаем клавиатуру с кнопкой "Назад"
+            keyboard = types.InlineKeyboardMarkup()
+            back_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['back']} Назад", 
+                callback_data="menu_users"
+            )
+            keyboard.add(back_btn)
+            
+            self.send_message(message.chat.id, users_text, reply_markup=keyboard)
             logger.info(f"Отправлен справочник пользователей администратору {message.from_user.id}")
             
         except Exception as e:
@@ -361,10 +391,22 @@ class UserHandler(BaseHandler):
             args = self.extract_command_args(message.text)
             
             if not args:
+                # Создаем клавиатуру с кнопкой "Назад"
+                keyboard = types.InlineKeyboardMarkup()
+                back_btn = types.InlineKeyboardButton(
+                    text=f"{EMOJI['back']} Назад", 
+                    callback_data="menu_users"
+                )
+                keyboard.add(back_btn)
+                
+                # Отправляем информационное сообщение
                 self.send_message(
                     message.chat.id, 
-                    f"{EMOJI['error']} <b>Ошибка:</b> Неверный формат команды.\n\n"
-                    f"Используйте: <code>/remove_user @username</code>"
+                    f"{EMOJI['minus']} <b>Удаление пользователя</b>\n\n"
+                    f"Для удаления пользователя отправьте команду в формате:\n"
+                    f"<code>/remove_user @username</code>\n\n"
+                    f"После удаления пользователь не будет получать уведомления о днях рождения.",
+                    reply_markup=keyboard
                 )
                 return
             
@@ -418,10 +460,22 @@ class UserHandler(BaseHandler):
             args = self.extract_command_args(message.text)
             
             if not args:
+                # Создаем клавиатуру с кнопкой "Назад"
+                keyboard = types.InlineKeyboardMarkup()
+                back_btn = types.InlineKeyboardButton(
+                    text=f"{EMOJI['back']} Назад", 
+                    callback_data="menu_users"
+                )
+                keyboard.add(back_btn)
+                
+                # Отправляем информационное сообщение
                 self.send_message(
                     message.chat.id, 
-                    f"{EMOJI['error']} <b>Ошибка:</b> Неверный формат команды.\n\n"
-                    f"Используйте: <code>/set_admin @username</code>"
+                    f"{EMOJI['admin']} <b>Назначение администратора</b>\n\n"
+                    f"Для назначения пользователя администратором отправьте команду в формате:\n"
+                    f"<code>/set_admin @username</code>\n\n"
+                    f"После назначения пользователь получит доступ ко всем административным функциям бота.",
+                    reply_markup=keyboard
                 )
                 return
             
@@ -483,10 +537,22 @@ class UserHandler(BaseHandler):
             args = self.extract_command_args(message.text)
             
             if not args:
+                # Создаем клавиатуру с кнопкой "Назад"
+                keyboard = types.InlineKeyboardMarkup()
+                back_btn = types.InlineKeyboardButton(
+                    text=f"{EMOJI['back']} Назад", 
+                    callback_data="menu_users"
+                )
+                keyboard.add(back_btn)
+                
+                # Отправляем информационное сообщение
                 self.send_message(
                     message.chat.id, 
-                    f"{EMOJI['error']} <b>Ошибка:</b> Неверный формат команды.\n\n"
-                    f"Используйте: <code>/remove_admin @username</code>"
+                    f"{EMOJI['user']} <b>Отзыв прав администратора</b>\n\n"
+                    f"Для отзыва прав администратора у пользователя отправьте команду в формате:\n"
+                    f"<code>/remove_admin @username</code>\n\n"
+                    f"После отзыва прав пользователь потеряет доступ к административным функциям бота.",
+                    reply_markup=keyboard
                 )
                 return
             
@@ -548,10 +614,22 @@ class UserHandler(BaseHandler):
             args = self.extract_command_args(message.text)
             
             if not args:
+                # Создаем клавиатуру с кнопкой "Назад"
+                keyboard = types.InlineKeyboardMarkup()
+                back_btn = types.InlineKeyboardButton(
+                    text=f"{EMOJI['back']} Назад", 
+                    callback_data="menu_users"
+                )
+                keyboard.add(back_btn)
+                
+                # Отправляем информационное сообщение
                 self.send_message(
                     message.chat.id, 
-                    f"{EMOJI['error']} <b>Ошибка:</b> Неверный формат команды.\n\n"
-                    f"Используйте: <code>/toggle_notifications @username</code>"
+                    f"{EMOJI['bell']} <b>Управление уведомлениями</b>\n\n"
+                    f"Для включения или отключения уведомлений пользователя отправьте команду в формате:\n"
+                    f"<code>/toggle_notifications @username</code>\n\n"
+                    f"После выполнения команды статус получения уведомлений для пользователя изменится на противоположный.",
+                    reply_markup=keyboard
                 )
                 return
             

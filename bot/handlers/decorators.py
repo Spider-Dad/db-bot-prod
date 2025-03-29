@@ -1,18 +1,17 @@
 """
-Декораторы для обработчиков бота.
+Декораторы для обработчиков команд бота.
 
-Этот модуль содержит декораторы, которые можно применять к методам-обработчикам
-для проверки различных условий перед выполнением основной логики.
+Этот модуль содержит вспомогательные декораторы для обработчиков команд Telegram-бота,
+упрощающие проверку прав доступа и обработку ошибок.
 """
 
 import logging
 import functools
-from typing import Callable, Any, List, Optional
-
-import telebot
+from typing import Callable, List, Optional, Any
 from telebot import types
 
 from config import ADMIN_IDS
+from bot.constants import EMOJI
 
 logger = logging.getLogger(__name__)
 
@@ -22,108 +21,72 @@ def admin_required(func: Callable) -> Callable:
     Декоратор для проверки, является ли пользователь администратором.
     
     Args:
-        func: Функция-обработчик
+        func: Декорируемая функция
         
     Returns:
-        Декорированная функция
+        Обертка для функции, проверяющая права администратора
     """
     @functools.wraps(func)
     def wrapper(self, message: types.Message, *args, **kwargs) -> Any:
         user_id = message.from_user.id
         
-        if user_id not in ADMIN_IDS:
-            logger.warning(f"Попытка доступа к административной функции от неадминистратора: {user_id}")
-            self.bot.send_message(
-                message.chat.id,
-                "⚠️ У вас нет прав администратора для выполнения этой команды."
-            )
-            return None
-        
-        return func(self, message, *args, **kwargs)
-    
-    return wrapper
+        # Проверяем, является ли пользователь администратором в конфигурации
+        if user_id in ADMIN_IDS:
+            return func(self, message, *args, **kwargs)
 
-
-def registered_only(func: Callable) -> Callable:
-    """
-    Декоратор для проверки, зарегистрирован ли пользователь в системе.
-    
-    Args:
-        func: Функция-обработчик
+        # Проверяем, является ли пользователь администратором в базе данных
+        try:
+            if hasattr(self, 'user_service'):
+                user = self.user_service.get_user_by_telegram_id(user_id)
+                if user and user.is_admin:
+                    return func(self, message, *args, **kwargs)
+        except Exception as e:
+            logger.error(f"Ошибка при проверке администратора в базе данных: {str(e)}")
+            
+        # Если пользователь не является администратором
+        self.bot.send_message(
+            message.chat.id,
+            f"{EMOJI['error']} <b>Ошибка:</b> У вас нет прав для выполнения этой команды."
+        )
+        logger.warning(f"Попытка несанкционированного доступа к admin-команде от пользователя {user_id}")
+        return None
         
-    Returns:
-        Декорированная функция
-    """
-    @functools.wraps(func)
-    def wrapper(self, message: types.Message, *args, **kwargs) -> Any:
-        user_id = message.from_user.id
-        
-        # Проверяем, есть ли пользователь в системе
-        user = self.user_service.get_user_by_telegram_id(user_id)
-        
-        if not user:
-            logger.warning(f"Попытка доступа к функции от незарегистрированного пользователя: {user_id}")
-            self.bot.send_message(
-                message.chat.id,
-                "⚠️ Вы не зарегистрированы в системе. Используйте /start для регистрации."
-            )
-            return None
-        
-        # Передаем найденного пользователя в обработчик
-        return func(self, message, user, *args, **kwargs)
-    
     return wrapper
 
 
 def log_errors(func: Callable) -> Callable:
     """
-    Декоратор для логирования ошибок в обработчиках.
+    Декоратор для логирования ошибок при выполнении функции.
     
     Args:
-        func: Функция-обработчик
+        func: Декорируемая функция
         
     Returns:
-        Декорированная функция
+        Обертка для функции с логированием ошибок
     """
     @functools.wraps(func)
     def wrapper(self, *args, **kwargs) -> Any:
         try:
             return func(self, *args, **kwargs)
         except Exception as e:
-            # Получаем информацию о сообщении, если оно есть в аргументах
-            message = None
-            for arg in args:
-                if isinstance(arg, types.Message):
-                    message = arg
-                    break
+            # Получаем имя функции
+            func_name = func.__name__
             
-            user_id = message.from_user.id if message else "Неизвестный пользователь"
-            command = message.text if message else "Неизвестная команда"
+            # Логируем ошибку
+            logger.error(f"Ошибка в функции {func_name}: {str(e)}", exc_info=True)
             
-            logger.error(f"Ошибка в обработчике {func.__name__} от пользователя {user_id}: {str(e)}")
-            
-            # Отправляем сообщение об ошибке пользователю
-            if message:
+            # Если это обработчик сообщения, отправляем сообщение об ошибке
+            if args and isinstance(args[0], types.Message):
+                message = args[0]
                 self.bot.send_message(
                     message.chat.id,
-                    "❌ Произошла ошибка при обработке вашего запроса. Администраторы уведомлены."
+                    f"{EMOJI['error']} <b>Ошибка при выполнении команды:</b> {str(e)}",
+                    parse_mode='HTML'
                 )
-                
-            # Уведомляем администраторов об ошибке
-            error_message = f"""<b>⚠️ Ошибка в боте</b>
-
-<b>Пользователь:</b> {user_id}
-<b>Команда:</b> {command}
-<b>Ошибка:</b> {str(e)}"""
-
-            for admin_id in ADMIN_IDS:
-                try:
-                    self.bot.send_message(admin_id, error_message, parse_mode='HTML')
-                except Exception:
-                    pass
             
+            # Продолжаем выполнение, возвращая None
             return None
-    
+            
     return wrapper
 
 

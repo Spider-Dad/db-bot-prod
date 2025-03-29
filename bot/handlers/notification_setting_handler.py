@@ -50,6 +50,7 @@ class NotificationSettingHandler(BaseHandler):
         self.bot.register_message_handler(self.get_settings, commands=['get_settings'])
         self.bot.register_message_handler(self.set_setting, commands=['set_setting'])
         self.bot.register_message_handler(self.update_setting, commands=['update_setting'])
+        self.bot.register_message_handler(self.edit_setting, commands=['edit_setting'])
         self.bot.register_message_handler(self.delete_setting, commands=['delete_setting'])
         self.bot.register_message_handler(self.activate_setting, commands=['activate_setting'])
         self.bot.register_message_handler(self.deactivate_setting, commands=['deactivate_setting'])
@@ -79,10 +80,19 @@ class NotificationSettingHandler(BaseHandler):
             # Получаем все настройки с информацией о шаблонах
             settings = self.setting_service.get_settings_with_templates()
             
+            # Создаем клавиатуру с кнопкой "Назад"
+            keyboard = types.InlineKeyboardMarkup()
+            back_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['back']} Назад", 
+                callback_data="menu_settings"
+            )
+            keyboard.add(back_btn)
+            
             if not settings:
                 self.send_message(
                     message.chat.id,
-                    f"{EMOJI['info']} В системе нет настроек уведомлений."
+                    f"{EMOJI['info']} В системе нет настроек уведомлений.",
+                    reply_markup=keyboard
                 )
                 return
             
@@ -112,7 +122,7 @@ class NotificationSettingHandler(BaseHandler):
                 
                 settings_text += setting_text
             
-            self.send_message(message.chat.id, settings_text)
+            self.send_message(message.chat.id, settings_text, reply_markup=keyboard)
             logger.info(f"Отправлен список настроек администратору {message.from_user.id}")
             
         except Exception as e:
@@ -135,12 +145,33 @@ class NotificationSettingHandler(BaseHandler):
             args = message.text.split()[1:] if len(message.text.split()) > 1 else []
             
             if len(args) < 3:
-                self.send_message(
-                    message.chat.id, 
-                    f"{EMOJI['error']} <b>Ошибка:</b> Неверный формат команды.\n\n"
-                    f"Используйте: <code>/set_setting [id_шаблона] [дней_до_события] [время_отправки]</code>\n\n"
-                    f"Например: <code>/set_setting 1 1 12:00</code>"
+                # Текст с инструкцией по добавлению настройки, как в callback-обработчике
+                text = (
+                    f"{EMOJI['plus']} <b>Добавление настройки уведомления</b>\n\n"
+                    f"Для добавления настройки отправьте команду в формате:\n"
+                    f"<code>/set_setting [id_шаблона] [дней_до_события] [время_отправки]</code>\n\n"
+                    f"Например:\n"
+                    f"<code>/set_setting 1 1 12:00</code>\n\n"
+                    f"где:\n"
+                    f"• id_шаблона - ID шаблона уведомления\n"
+                    f"• дней_до_события - за сколько дней до события отправлять\n"
+                    f"• время_отправки - время отправки в формате ЧЧ:ММ"
                 )
+                
+                # Создаем клавиатуру с кнопками "Список шаблонов" и "Назад"
+                keyboard = types.InlineKeyboardMarkup()
+                templates_btn = types.InlineKeyboardButton(
+                    text=f"{EMOJI['template']} Список шаблонов", 
+                    callback_data="cmd_templates_list"
+                )
+                back_btn = types.InlineKeyboardButton(
+                    text=f"{EMOJI['back']} Назад", 
+                    callback_data="menu_settings"
+                )
+                keyboard.add(templates_btn)
+                keyboard.add(back_btn)
+                
+                self.send_message(message.chat.id, text, reply_markup=keyboard)
                 return
             
             # Извлекаем аргументы
@@ -188,9 +219,18 @@ class NotificationSettingHandler(BaseHandler):
             result = self.setting_service.create_setting(setting)
             
             if result:
+                # Добавляем кнопку "Назад" к сообщению об успешном создании
+                keyboard = types.InlineKeyboardMarkup()
+                back_btn = types.InlineKeyboardButton(
+                    text=f"{EMOJI['back']} Назад", 
+                    callback_data="menu_settings"
+                )
+                keyboard.add(back_btn)
+                
                 self.send_message(
                     message.chat.id,
-                    f"{EMOJI['success']} Настройка уведомления успешно добавлена."
+                    f"{EMOJI['success']} Настройка уведомления успешно добавлена.",
+                    reply_markup=keyboard
                 )
                 logger.info(f"Добавлена настройка уведомления администратором {message.from_user.id}")
             else:
@@ -208,16 +248,47 @@ class NotificationSettingHandler(BaseHandler):
     
     @admin_required
     @log_errors
-    @command_args(4)
-    def update_setting(self, message: types.Message, args: List[str]) -> None:
+    def update_setting(self, message: types.Message) -> None:
         """
         Обработчик команды /update_setting.
         
         Args:
             message: Сообщение от пользователя
-            args: Аргументы команды
         """
         try:
+            args = message.text.split()[1:] if len(message.text.split()) > 1 else []
+            
+            if len(args) < 4:
+                # Текст с инструкцией по обновлению настройки
+                text = (
+                    f"{EMOJI['edit']} <b>Обновление настройки уведомления</b>\n\n"
+                    f"Для обновления настройки отправьте команду в формате:\n"
+                    f"<code>/update_setting [id] [id_шаблона] [дней_до_события] [время_отправки]</code>\n\n"
+                    f"Например:\n"
+                    f"<code>/update_setting 1 2 3 15:30</code>\n\n"
+                    f"где:\n"
+                    f"• id - ID настройки\n"
+                    f"• id_шаблона - новый ID шаблона уведомления\n"
+                    f"• дней_до_события - новое значение дней до события\n"
+                    f"• время_отправки - новое время отправки в формате ЧЧ:ММ"
+                )
+                
+                # Создаем клавиатуру с кнопками "Список настроек" и "Назад"
+                keyboard = types.InlineKeyboardMarkup()
+                list_btn = types.InlineKeyboardButton(
+                    text=f"{EMOJI['list']} Список настроек", 
+                    callback_data="cmd_get_settings"
+                )
+                back_btn = types.InlineKeyboardButton(
+                    text=f"{EMOJI['back']} Назад", 
+                    callback_data="menu_settings"
+                )
+                keyboard.add(list_btn)
+                keyboard.add(back_btn)
+                
+                self.send_message(message.chat.id, text, reply_markup=keyboard)
+                return
+            
             # Извлекаем аргументы
             try:
                 setting_id = int(args[0])
@@ -263,16 +334,25 @@ class NotificationSettingHandler(BaseHandler):
                 return
             
             # Обновляем настройку
-            setting['template_id'] = template_id
-            setting['days_before'] = days_before
-            setting['time'] = time_str
+            setting.template_id = template_id
+            setting.days_before = days_before
+            setting.time = time_str
             
             result = self.setting_service.update_setting(setting)
             
             if result:
+                # Добавляем кнопку "Назад" к сообщению об успешном обновлении
+                keyboard = types.InlineKeyboardMarkup()
+                back_btn = types.InlineKeyboardButton(
+                    text=f"{EMOJI['back']} Назад", 
+                    callback_data="menu_settings"
+                )
+                keyboard.add(back_btn)
+                
                 self.send_message(
                     message.chat.id,
-                    f"{EMOJI['success']} Настройка с ID {setting_id} успешно обновлена."
+                    f"{EMOJI['success']} Настройка с ID {setting_id} успешно обновлена.",
+                    reply_markup=keyboard
                 )
                 logger.info(f"Обновлена настройка с ID {setting_id} администратором {message.from_user.id}")
             else:
@@ -290,16 +370,55 @@ class NotificationSettingHandler(BaseHandler):
     
     @admin_required
     @log_errors
-    @command_args(1)
-    def delete_setting(self, message: types.Message, args: List[str]) -> None:
+    def edit_setting(self, message: types.Message) -> None:
+        """
+        Обработчик команды /edit_setting. Алиас для /update_setting.
+        
+        Args:
+            message: Сообщение от пользователя
+        """
+        # Делегируем обработку методу update_setting
+        self.update_setting(message)
+    
+    @admin_required
+    @log_errors
+    def delete_setting(self, message: types.Message) -> None:
         """
         Обработчик команды /delete_setting.
         
         Args:
             message: Сообщение от пользователя
-            args: Аргументы команды
         """
         try:
+            args = message.text.split()[1:] if len(message.text.split()) > 1 else []
+            
+            if len(args) < 1:
+                # Текст с инструкцией по удалению настройки
+                text = (
+                    f"{EMOJI['minus']} <b>Удаление настройки уведомления</b>\n\n"
+                    f"Для удаления настройки отправьте команду в формате:\n"
+                    f"<code>/delete_setting [id]</code>\n\n"
+                    f"Например:\n"
+                    f"<code>/delete_setting 1</code>\n\n"
+                    f"Для получения ID настройки используйте команду /get_settings или нажмите кнопку «Список настроек»."
+                )
+                
+                # Создаем клавиатуру с кнопками "Список настроек" и "Назад"
+                keyboard = types.InlineKeyboardMarkup()
+                list_btn = types.InlineKeyboardButton(
+                    text=f"{EMOJI['list']} Список настроек", 
+                    callback_data="cmd_get_settings"
+                )
+                back_btn = types.InlineKeyboardButton(
+                    text=f"{EMOJI['back']} Назад", 
+                    callback_data="menu_settings"
+                )
+                keyboard.add(list_btn)
+                keyboard.add(back_btn)
+                
+                self.send_message(message.chat.id, text, reply_markup=keyboard)
+                return
+            
             # Извлекаем ID настройки
             try:
                 setting_id = int(args[0])
@@ -324,9 +443,18 @@ class NotificationSettingHandler(BaseHandler):
             result = self.setting_service.delete_setting(setting_id)
             
             if result:
+                # Добавляем кнопку "Назад" к сообщению об успешном удалении
+                keyboard = types.InlineKeyboardMarkup()
+                back_btn = types.InlineKeyboardButton(
+                    text=f"{EMOJI['back']} Назад", 
+                    callback_data="menu_settings"
+                )
+                keyboard.add(back_btn)
+                
                 self.send_message(
                     message.chat.id,
-                    f"{EMOJI['success']} Настройка с ID {setting_id} успешно удалена."
+                    f"{EMOJI['success']} Настройка с ID {setting_id} успешно удалена.",
+                    reply_markup=keyboard
                 )
                 logger.info(f"Удалена настройка с ID {setting_id} администратором {message.from_user.id}")
             else:
@@ -344,16 +472,43 @@ class NotificationSettingHandler(BaseHandler):
     
     @admin_required
     @log_errors
-    @command_args(1)
-    def activate_setting(self, message: types.Message, args: List[str]) -> None:
+    def activate_setting(self, message: types.Message) -> None:
         """
         Обработчик команды /activate_setting.
         
         Args:
             message: Сообщение от пользователя
-            args: Аргументы команды
         """
         try:
+            args = message.text.split()[1:] if len(message.text.split()) > 1 else []
+            
+            if len(args) < 1:
+                # Текст с инструкцией по активации настройки
+                text = (
+                    f"{EMOJI['check']} <b>Активация настройки уведомления</b>\n\n"
+                    f"Для активации настройки отправьте команду в формате:\n"
+                    f"<code>/activate_setting [id]</code>\n\n"
+                    f"Например:\n"
+                    f"<code>/activate_setting 1</code>\n\n"
+                    f"Для получения ID настройки используйте команду /get_settings или нажмите кнопку «Список настроек»."
+                )
+                
+                # Создаем клавиатуру с кнопками "Список настроек" и "Назад"
+                keyboard = types.InlineKeyboardMarkup()
+                list_btn = types.InlineKeyboardButton(
+                    text=f"{EMOJI['list']} Список настроек", 
+                    callback_data="cmd_get_settings"
+                )
+                back_btn = types.InlineKeyboardButton(
+                    text=f"{EMOJI['back']} Назад", 
+                    callback_data="menu_settings"
+                )
+                keyboard.add(list_btn)
+                keyboard.add(back_btn)
+                
+                self.send_message(message.chat.id, text, reply_markup=keyboard)
+                return
+            
             # Извлекаем ID настройки
             try:
                 setting_id = int(args[0])
@@ -375,7 +530,7 @@ class NotificationSettingHandler(BaseHandler):
                 return
             
             # Если настройка уже активна, сообщаем об этом
-            if setting.get('is_active', False):
+            if setting.is_active:
                 self.send_message(
                     message.chat.id,
                     f"{EMOJI['info']} Настройка с ID {setting_id} уже активна."
@@ -386,9 +541,18 @@ class NotificationSettingHandler(BaseHandler):
             result = self.setting_service.toggle_setting_active(setting_id, True)
             
             if result:
+                # Добавляем кнопку "Назад" к сообщению об успешной активации
+                keyboard = types.InlineKeyboardMarkup()
+                back_btn = types.InlineKeyboardButton(
+                    text=f"{EMOJI['back']} Назад", 
+                    callback_data="menu_settings"
+                )
+                keyboard.add(back_btn)
+                
                 self.send_message(
                     message.chat.id,
-                    f"{EMOJI['success']} Настройка с ID {setting_id} успешно активирована."
+                    f"{EMOJI['success']} Настройка с ID {setting_id} успешно активирована.",
+                    reply_markup=keyboard
                 )
                 logger.info(f"Активирована настройка с ID {setting_id} администратором {message.from_user.id}")
             else:
@@ -406,16 +570,43 @@ class NotificationSettingHandler(BaseHandler):
     
     @admin_required
     @log_errors
-    @command_args(1)
-    def deactivate_setting(self, message: types.Message, args: List[str]) -> None:
+    def deactivate_setting(self, message: types.Message) -> None:
         """
         Обработчик команды /deactivate_setting.
         
         Args:
             message: Сообщение от пользователя
-            args: Аргументы команды
         """
         try:
+            args = message.text.split()[1:] if len(message.text.split()) > 1 else []
+            
+            if len(args) < 1:
+                # Текст с инструкцией по деактивации настройки
+                text = (
+                    f"{EMOJI['cross']} <b>Деактивация настройки уведомления</b>\n\n"
+                    f"Для деактивации настройки отправьте команду в формате:\n"
+                    f"<code>/deactivate_setting [id]</code>\n\n"
+                    f"Например:\n"
+                    f"<code>/deactivate_setting 1</code>\n\n"
+                    f"Для получения ID настройки используйте команду /get_settings или нажмите кнопку «Список настроек»."
+                )
+                
+                # Создаем клавиатуру с кнопками "Список настроек" и "Назад"
+                keyboard = types.InlineKeyboardMarkup()
+                list_btn = types.InlineKeyboardButton(
+                    text=f"{EMOJI['list']} Список настроек", 
+                    callback_data="cmd_get_settings"
+                )
+                back_btn = types.InlineKeyboardButton(
+                    text=f"{EMOJI['back']} Назад", 
+                    callback_data="menu_settings"
+                )
+                keyboard.add(list_btn)
+                keyboard.add(back_btn)
+                
+                self.send_message(message.chat.id, text, reply_markup=keyboard)
+                return
+            
             # Извлекаем ID настройки
             try:
                 setting_id = int(args[0])
@@ -437,7 +628,7 @@ class NotificationSettingHandler(BaseHandler):
                 return
             
             # Если настройка уже неактивна, сообщаем об этом
-            if not setting.get('is_active', True):
+            if not setting.is_active:
                 self.send_message(
                     message.chat.id,
                     f"{EMOJI['info']} Настройка с ID {setting_id} уже неактивна."
@@ -448,9 +639,18 @@ class NotificationSettingHandler(BaseHandler):
             result = self.setting_service.toggle_setting_active(setting_id, False)
             
             if result:
+                # Добавляем кнопку "Назад" к сообщению об успешной деактивации
+                keyboard = types.InlineKeyboardMarkup()
+                back_btn = types.InlineKeyboardButton(
+                    text=f"{EMOJI['back']} Назад", 
+                    callback_data="menu_settings"
+                )
+                keyboard.add(back_btn)
+                
                 self.send_message(
                     message.chat.id,
-                    f"{EMOJI['success']} Настройка с ID {setting_id} успешно деактивирована."
+                    f"{EMOJI['success']} Настройка с ID {setting_id} успешно деактивирована.",
+                    reply_markup=keyboard
                 )
                 logger.info(f"Деактивирована настройка с ID {setting_id} администратором {message.from_user.id}")
             else:

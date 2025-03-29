@@ -172,8 +172,7 @@ class BackupHandler(BaseHandler):
     
     @admin_required
     @log_errors
-    @command_args(1)
-    def restore_backup(self, message: types.Message, args: List[str]) -> None:
+    def restore_backup(self, message: types.Message, args: List[str] = None) -> None:
         """
         Обработчик команды /restore.
         
@@ -182,6 +181,25 @@ class BackupHandler(BaseHandler):
             args: Аргументы команды
         """
         try:
+            # Проверяем наличие аргументов
+            if not args or len(args) < 1:
+                # Создаем клавиатуру с кнопкой "Назад"
+                keyboard = types.InlineKeyboardMarkup()
+                back_btn = types.InlineKeyboardButton(
+                    text=f"{EMOJI['back']} Назад", 
+                    callback_data="menu_backup"
+                )
+                keyboard.add(back_btn)
+                
+                # Если аргументы не переданы, отправляем информационное сообщение
+                self.send_message(
+                    message.chat.id,
+                    f"{EMOJI['info']} Введите команду в формате: <code>/restore [имя_файла]</code>\n\n"
+                    f"Например: <code>/restore database_backup_2023-07-15.db</code>",
+                    reply_markup=keyboard
+                )
+                return
+                
             # Извлекаем имя файла резервной копии
             backup_filename = args[0]
             
@@ -319,8 +337,7 @@ class BackupHandler(BaseHandler):
     
     @admin_required
     @log_errors
-    @command_args(1)
-    def delete_backup(self, message: types.Message, args: List[str]) -> None:
+    def delete_backup(self, message: types.Message, args: List[str] = None) -> None:
         """
         Обработчик команды /delete_backup.
         
@@ -329,6 +346,25 @@ class BackupHandler(BaseHandler):
             args: Аргументы команды
         """
         try:
+            # Проверяем наличие аргументов
+            if not args or len(args) < 1:
+                # Создаем клавиатуру с кнопкой "Назад"
+                keyboard = types.InlineKeyboardMarkup()
+                back_btn = types.InlineKeyboardButton(
+                    text=f"{EMOJI['back']} Назад", 
+                    callback_data="menu_backup"
+                )
+                keyboard.add(back_btn)
+                
+                # Если аргументы не переданы, отправляем информационное сообщение
+                self.send_message(
+                    message.chat.id,
+                    f"{EMOJI['info']} Введите команду в формате: <code>/delete_backup [имя_файла]</code>\n\n"
+                    f"Например: <code>/delete_backup database_backup_2023-07-15.db</code>",
+                    reply_markup=keyboard
+                )
+                return
+            
             # Извлекаем имя файла резервной копии
             backup_filename = args[0]
             
