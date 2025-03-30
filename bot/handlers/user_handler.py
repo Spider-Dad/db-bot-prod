@@ -577,15 +577,28 @@ class UserHandler(BaseHandler):
                 )
                 return
             
-            # Удаляем пользователя
+            # Сохраняем ID пользователя перед удалением
             user_id = user.telegram_id
+            
+            # Удаляем пользователя
             result = self.user_service.delete_user(user_id)
             
             if result:
+                # Отправляем сообщение администратору
                 self.send_message(
                     message.chat.id,
                     f"{EMOJI['success']} Пользователь @{username} успешно удален."
                 )
+                
+                # Отправляем уведомление удаленному пользователю
+                notification_text = (
+                    f"{EMOJI['info']} <b>Уведомление о доступе</b>\n\n"
+                    f"Вы были удалены из системы бота.\n"
+                    f"Для получения доступа необходимо повторно отправить запрос на регистрацию, "
+                    f"нажав команду /start"
+                )
+                self.send_message(user_id, notification_text)
+                
                 logger.info(f"Удален пользователь @{username} администратором {message.from_user.id}")
             else:
                 self.send_message(
@@ -659,10 +672,21 @@ class UserHandler(BaseHandler):
             result = self.user_service.set_admin_status(user_id, True)
             
             if result:
+                # Отправляем сообщение администратору
                 self.send_message(
                     message.chat.id,
                     f"{EMOJI['success']} Пользователь @{username} назначен администратором."
                 )
+                
+                # Отправляем уведомление новому администратору
+                welcome_text = (
+                    f"{EMOJI['wave']} <b>Поздравляем!</b>\n\n"
+                    f"Вам были выданы права администратора.\n"
+                    f"Теперь вам доступен полный функционал бота.\n\n"
+                    f"Нажмите /start для обновления меню."
+                )
+                self.send_message(user_id, welcome_text)
+                
                 logger.info(f"Пользователь @{username} назначен администратором пользователем {message.from_user.id}")
             else:
                 self.send_message(
@@ -736,10 +760,23 @@ class UserHandler(BaseHandler):
             result = self.user_service.set_admin_status(user_id, False)
             
             if result:
+                # Отправляем сообщение администратору, выполнившему команду
                 self.send_message(
                     message.chat.id,
                     f"{EMOJI['success']} У пользователя @{username} отозваны права администратора."
                 )
+                
+                # Отправляем уведомление пользователю об отзыве прав
+                notification_text = (
+                    f"{EMOJI['info']} <b>Уведомление об изменении прав доступа</b>\n\n"
+                    f"У вас были отозваны права администратора.\n"
+                    f"Теперь вам доступен только базовый функционал бота.\n\n"
+                )
+                
+                # Создаем базовую клавиатуру для пользователя
+                keyboard = self.keyboard_manager.create_main_menu(is_admin=False)
+                self.send_message(user_id, notification_text, reply_markup=keyboard)
+                
                 logger.info(f"У пользователя @{username} отозваны права администратора пользователем {message.from_user.id}")
             else:
                 self.send_message(
@@ -1274,9 +1311,8 @@ class UserHandler(BaseHandler):
             # Текст с инструкцией по удалению пользователя
             text = (
                 f"{EMOJI['minus']} <b>Удаление пользователя</b>\n\n"
-                f"Для удаления пользователя отправьте команду в формате:\n"
+                f"Для удаления пользователя из системы отправьте команду в формате:\n"
                 f"<code>/remove_user @username</code>\n\n"
-                f"После удаления пользователь не будет получать уведомления о днях рождения."
             )
             
             # Создаем клавиатуру с кнопкой "Назад"

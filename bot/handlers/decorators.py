@@ -30,10 +30,6 @@ def admin_required(func: Callable) -> Callable:
     def wrapper(self, message: types.Message, *args, **kwargs) -> Any:
         user_id = message.from_user.id
         
-        # Проверяем, является ли пользователь администратором в конфигурации
-        if user_id in ADMIN_IDS:
-            return func(self, message, *args, **kwargs)
-
         # Проверяем, является ли пользователь администратором в базе данных
         try:
             if hasattr(self, 'user_service'):
@@ -43,10 +39,14 @@ def admin_required(func: Callable) -> Callable:
         except Exception as e:
             logger.error(f"Ошибка при проверке администратора в базе данных: {str(e)}")
             
+        # Если нет в БД, проверяем конфигурацию
+        if user_id in ADMIN_IDS:
+            return func(self, message, *args, **kwargs)
+            
         # Если пользователь не является администратором
         self.bot.send_message(
             message.chat.id,
-            f"{EMOJI['error']} <b>Ошибка:</b> У вас нет прав для выполнения этой команды.",
+            f"{EMOJI['error']} У вас нет прав администратора",
             parse_mode='HTML'
         )
         logger.warning(f"Попытка несанкционированного доступа к admin-команде от пользователя {user_id}")
