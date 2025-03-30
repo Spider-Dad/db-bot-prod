@@ -56,13 +56,42 @@ class NotificationSetting:
     template: Optional[NotificationTemplate] = None
 
 
-@dataclass
 class NotificationLog:
-    """Модель лога уведомлений."""
+    """
+    Модель записи журнала уведомлений.
     
-    user_id: int
-    message: str
-    status: str
-    error_message: Optional[str] = None
-    created_at: Union[datetime, str] = field(default_factory=lambda: datetime.now())
-    id: Optional[int] = None 
+    Атрибуты:
+        id: ID записи
+        user_id: ID пользователя
+        message: Текст сообщения
+        status: Статус отправки ('success', 'error', 'warning')
+        error_message: Сообщение об ошибке (если есть)
+        created_at: Дата и время создания записи
+    """
+    
+    def __init__(
+        self,
+        id: Optional[int] = None,
+        user_id: Optional[int] = None,
+        message: str = "",
+        status: str = "success",
+        error_message: Optional[str] = None,
+        created_at: Optional[str] = None
+    ):
+        """
+        Инициализация модели записи журнала уведомлений.
+        
+        Args:
+            id: ID записи
+            user_id: ID пользователя
+            message: Текст сообщения
+            status: Статус отправки ('success', 'error', 'warning')
+            error_message: Сообщение об ошибке (если есть)
+            created_at: Дата и время создания записи
+        """
+        self.id = id
+        self.user_id = user_id
+        self.message = message
+        self.status = status
+        self.error_message = error_message
+        self.created_at = created_at 

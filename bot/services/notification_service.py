@@ -18,6 +18,7 @@ from bot.services.user_service import UserService
 from bot.services.template_service import TemplateService
 from bot.services.notification_setting_service import NotificationSettingService
 from bot.services.notification_log_service import NotificationLogService
+from bot.constants import MONTHS_RU
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +70,7 @@ class NotificationService(BaseService):
         Отправка сообщения через бота.
         
         Args:
-            chat_id: ID чата
+            chat_id: Telegram ID чата (совпадает с telegram_id пользователя)
             text: Текст сообщения
             parse_mode: Режим парсинга сообщения
             
@@ -115,12 +116,12 @@ class NotificationService(BaseService):
         """
         try:
             # Проверяем, что пользователь существует и у него включены оповещения
-            user = self.user_service.get_user_by_id(user_id)
+            user = self.user_service.get_user_by_telegram_id(user_id)
             if not user:
-                logger.warning(f"Пользователь с ID {user_id} не найден")
+                logger.warning(f"Пользователь с Telegram ID {user_id} не найден")
                 return False
             
-            if not user.get('notifications_enabled'):
+            if not user.is_notifications_enabled:
                 logger.info(f"Оповещения отключены для пользователя {user_id}")
                 return False
             
@@ -132,7 +133,7 @@ class NotificationService(BaseService):
             
             # Форматируем шаблон с контекстом
             context = context or {}
-            message = self.template_service.format_template(template.get('text', ''), context)
+            message = self.template_service.format_template(template, context)
             
             # Отправляем сообщение
             result = self.send_message_func(user_id, message)
@@ -177,18 +178,18 @@ class NotificationService(BaseService):
             results = {"success": 0, "failed": 0}
             
             for user in users:
-                user_id = user.get('telegram_id')
+                telegram_id = user.telegram_id
                 
                 # Пропускаем пользователей из исключений
-                if user_id in exclude_ids:
+                if telegram_id in exclude_ids:
                     continue
                 
                 # Пропускаем пользователей с отключенными оповещениями
-                if not user.get('notifications_enabled'):
+                if not user.is_notifications_enabled:
                     continue
                 
                 # Отправляем оповещение
-                if self.send_notification(user_id, template_name, context):
+                if self.send_notification(telegram_id, template_name, context):
                     results["success"] += 1
                 else:
                     results["failed"] += 1
@@ -274,28 +275,41 @@ class NotificationService(BaseService):
                     
                     # Для каждой настройки отправляем оповещения
                     for setting in settings:
-                        template_id = setting.get('template_id')
-                        template = self.template_service.get_template_by_id(template_id)
+                        template = self.template_service.get_template_by_id(setting.template_id)
                         
                         if not template:
-                            logger.warning(f"Шаблон с ID {template_id} не найден")
+                            logger.warning(f"Шаблон с ID {setting.template_id} не найден")
                             continue
-                        
-                        template_name = template.get('name')
                         
                         # Для каждого пользователя с ДР в эту дату отправляем оповещения всем остальным
                         for birthday_user in users:
+                            # Форматируем даты с русскими названиями месяцев
+                            date_str = f"{birthday_date.day:02d} {MONTHS_RU[birthday_date.month]['gen']}"
+                            date_before = birthday_date - timedelta(days=1)
+                            date_before_str = f"{date_before.day:02d} {MONTHS_RU[date_before.month]['gen']}"
+                            
+                            # Получаем значения платежных данных
+                            phone_pay = self.setting_service.get_payment_phone()
+                            name_pay = self.setting_service.get_payment_name()
+                            
+                            # Логируем платежные данные для отладки
+                            logger.info(f"Платежные данные для уведомления: phone={phone_pay}, name={name_pay}")
+                            
                             # Подготавливаем контекст для шаблона
                             context = {
-                                'name': birthday_user.get('name', ''),
-                                'username': birthday_user.get('username', ''),
-                                'date': birthday_date_str,
-                                'days_until': days_until
+                                'name': f"{birthday_user['first_name']} {birthday_user['last_name']}".strip(),
+                                'first_name': birthday_user['first_name'],
+                                'last_name': birthday_user['last_name'],
+                                'date': date_str,
+                                'date_before': date_before_str,
+                                'days_until': days_until,
+                                'phone_pay': phone_pay,
+                                'name_pay': name_pay
                             }
                             
                             # Отправляем всем пользователям, кроме именинника
-                            exclude_ids = [birthday_user.get('telegram_id')]
-                            result = self.send_notification_to_all(template_name, context, exclude_ids)
+                            exclude_ids = [birthday_user['telegram_id']]
+                            result = self.send_notification_to_all(template.name, context, exclude_ids)
                             
                             results["success"] += result["success"]
                             results["failed"] += result["failed"]
@@ -333,7 +347,7 @@ class NotificationService(BaseService):
             results = {"success": 0, "failed": 0}
             
             for setting in settings:
-                setting_id = setting.get('id')
+                setting_id = setting.id
                 cache_key = f"{setting_id}_{current_10min}"
                 
                 if cache_key in self._last_sent_notifications:
@@ -341,7 +355,7 @@ class NotificationService(BaseService):
                     continue
                 
                 # Получаем пользователей с приближающимися днями рождения
-                days_ahead = setting.get('days_before')
+                days_ahead = setting.days_before
                 birthdays_by_date = self.user_service.get_users_with_birthdays(days_ahead)
                 
                 if not birthdays_by_date:
@@ -358,34 +372,44 @@ class NotificationService(BaseService):
                         days_until = (birthday_date - today).days
                         
                         # Если настройка не соответствует текущему количеству дней, пропускаем
-                        if days_until != setting.get('days_before'):
+                        if days_until != setting.days_before:
                             continue
                         
-                        template_id = setting.get('template_id')
-                        template = self.template_service.get_template_by_id(template_id)
+                        template = self.template_service.get_template_by_id(setting.template_id)
                         
                         if not template:
-                            logger.warning(f"Шаблон с ID {template_id} не найден")
+                            logger.warning(f"Шаблон с ID {setting.template_id} не найден")
                             continue
-                        
-                        template_name = template.get('name')
                         
                         # Для каждого пользователя с ДР в эту дату отправляем оповещения всем остальным
                         for birthday_user in users:
+                            # Форматируем даты с русскими названиями месяцев
+                            date_str = f"{birthday_date.day:02d} {MONTHS_RU[birthday_date.month]['gen']}"
+                            date_before = birthday_date - timedelta(days=1)
+                            date_before_str = f"{date_before.day:02d} {MONTHS_RU[date_before.month]['gen']}"
+                            
+                            # Получаем значения платежных данных
+                            phone_pay = self.setting_service.get_payment_phone()
+                            name_pay = self.setting_service.get_payment_name()
+                            
+                            # Логируем платежные данные для отладки
+                            logger.info(f"Платежные данные для уведомления: phone={phone_pay}, name={name_pay}")
+                            
                             # Подготавливаем контекст для шаблона
                             context = {
-                                'name': birthday_user.get('name', ''),
-                                'first_name': birthday_user.get('first_name', ''),
-                                'last_name': birthday_user.get('last_name', ''),
-                                'date': birthday_date_str,
+                                'name': f"{birthday_user['first_name']} {birthday_user['last_name']}".strip(),
+                                'first_name': birthday_user['first_name'],
+                                'last_name': birthday_user['last_name'],
+                                'date': date_str,
+                                'date_before': date_before_str,
                                 'days_until': days_until,
-                                'phone_pay': self.setting_service.get_payment_phone() or '',
-                                'name_pay': self.setting_service.get_payment_name() or ''
+                                'phone_pay': phone_pay,
+                                'name_pay': name_pay
                             }
                             
                             # Отправляем всем пользователям, кроме именинника
-                            exclude_ids = [birthday_user.get('telegram_id')]
-                            result = self.send_notification_to_all(template_name, context, exclude_ids)
+                            exclude_ids = [birthday_user['telegram_id']]
+                            result = self.send_notification_to_all(template.name, context, exclude_ids)
                             
                             results["success"] += result["success"]
                             results["failed"] += result["failed"]

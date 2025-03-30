@@ -255,6 +255,73 @@ class UserService(BaseService):
             logger.error(f"Ошибка получения всех пользователей с днями рождения: {str(e)}")
             return []
     
+    def get_users_with_birthdays(self, days_ahead: int = None) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        Получение пользователей с днями рождения, сгруппированных по датам.
+        
+        Args:
+            days_ahead: Количество дней вперед для поиска
+            
+        Returns:
+            Словарь, где ключи - даты в формате YYYY-MM-DD,
+            значения - списки словарей с информацией о пользователях
+        """
+        try:
+            # Получаем всех пользователей
+            users = self.user_repository.get_all_users()
+            
+            # Фильтруем пользователей, у которых указана дата рождения
+            users_with_birthdays = [user for user in users if user.birth_date]
+            
+            # Получаем текущую дату
+            today = datetime.now().date()
+            
+            # Создаем словарь для группировки по датам
+            birthdays_by_date = {}
+            
+            for user in users_with_birthdays:
+                try:
+                    # Преобразуем строку даты рождения в объект date
+                    birth_date = datetime.strptime(user.birth_date, "%Y-%m-%d").date()
+                    
+                    # Вычисляем дату следующего дня рождения
+                    next_birthday = date(today.year, birth_date.month, birth_date.day)
+                    
+                    # Если день рождения уже прошел в этом году, берем следующий год
+                    if next_birthday < today:
+                        next_birthday = date(today.year + 1, birth_date.month, birth_date.day)
+                    
+                    # Вычисляем количество дней до дня рождения
+                    days_until = (next_birthday - today).days
+                    
+                    # Если указано количество дней вперед, проверяем, входит ли день рождения в этот период
+                    if days_ahead is not None and days_until > days_ahead:
+                        continue
+                    
+                    # Добавляем пользователя в соответствующий список
+                    birthday_date_str = next_birthday.strftime("%Y-%m-%d")
+                    if birthday_date_str not in birthdays_by_date:
+                        birthdays_by_date[birthday_date_str] = []
+                    
+                    birthdays_by_date[birthday_date_str].append({
+                        'id': user.id,
+                        'telegram_id': user.telegram_id,
+                        'username': user.username,
+                        'first_name': user.first_name,
+                        'last_name': user.last_name,
+                        'birth_date': user.birth_date,
+                        'days_until': days_until
+                    })
+                    
+                except ValueError as ve:
+                    logger.warning(f"Неверный формат даты рождения для пользователя {user.id}: {str(ve)}")
+            
+            return birthdays_by_date
+            
+        except Exception as e:
+            logger.error(f"Ошибка получения пользователей с днями рождения: {str(e)}")
+            return {}
+    
     def execute(self, *args, **kwargs) -> Any:
         """
         Выполнение основной бизнес-логики сервиса.

@@ -177,4 +177,20 @@ class TemplateService(BaseService):
             Результат выполнения бизнес-логики
         """
         # Заглушка для соответствия интерфейсу BaseService
+        return None
+    
+    def get_template_by_name(self, name: str) -> Optional[NotificationTemplate]:
+        """
+        Получение шаблона по имени.
+        
+        Args:
+            name: Имя шаблона
+            
+        Returns:
+            Шаблон или None, если шаблон не найден
+        """
+        templates = self.template_repository.get_all_templates(active_only=True)
+        for template in templates:
+            if template.name == name:
+                return template
         return None 

@@ -13,6 +13,7 @@ from bot.core.base_service import BaseService
 from bot.core.models import NotificationSetting, NotificationTemplate
 from bot.repositories.notification_setting_repository import NotificationSettingRepository
 from bot.repositories.template_repository import TemplateRepository
+from config import PHONE_PAY, NAME_PAY
 
 logger = logging.getLogger(__name__)
 
@@ -236,34 +237,30 @@ class NotificationSettingService(BaseService):
             logger.error(f"Ошибка при перезагрузке настроек уведомлений: {e}")
             return False
     
-    def get_payment_phone(self) -> Optional[str]:
+    def get_payment_phone(self) -> str:
         """
-        Получение телефона для платежей из настроек.
+        Получает номер телефона для платежей из переменных окружения.
         
         Returns:
-            Телефон для платежей или None, если настройка не найдена
+            str: Номер телефона для платежей
         """
         try:
-            # Получаем настройку из репозитория
-            # Обычно эта настройка хранится в отдельной таблице или в системных настройках
-            # Здесь предполагается, что есть метод в репозитории для получения этой настройки
-            return self.setting_repository.get_payment_phone()
+            logger.info(f"Получен номер телефона для платежей из переменных окружения: {PHONE_PAY}")
+            return PHONE_PAY
         except Exception as e:
-            logger.error(f"Ошибка при получении телефона для платежей: {e}")
-            return None
-    
-    def get_payment_name(self) -> Optional[str]:
+            logger.error(f"Ошибка при получении номера телефона для платежей: {str(e)}")
+            return ""
+
+    def get_payment_name(self) -> str:
         """
-        Получение имени получателя для платежей из настроек.
+        Получает имя получателя платежей из переменных окружения.
         
         Returns:
-            Имя получателя для платежей или None, если настройка не найдена
+            str: Имя получателя платежей
         """
         try:
-            # Получаем настройку из репозитория
-            # Обычно эта настройка хранится в отдельной таблице или в системных настройках
-            # Здесь предполагается, что есть метод в репозитории для получения этой настройки
-            return self.setting_repository.get_payment_name()
+            logger.info(f"Получено имя получателя платежей из переменных окружения: {NAME_PAY}")
+            return NAME_PAY
         except Exception as e:
-            logger.error(f"Ошибка при получении имени получателя для платежей: {e}")
-            return None 
+            logger.error(f"Ошибка при получении имени получателя платежей: {str(e)}")
+            return "" 

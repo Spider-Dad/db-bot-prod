@@ -51,10 +51,10 @@ class NotificationLogRepository(BaseRepository):
                 CREATE TABLE IF NOT EXISTS notification_logs (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     user_id INTEGER NOT NULL,
-                    message TEXT NOT NULL,
+                    message_text TEXT NOT NULL,
                     status TEXT NOT NULL,
                     error_message TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (user_id) REFERENCES users(id)
                 )
                 """)
@@ -63,10 +63,10 @@ class NotificationLogRepository(BaseRepository):
                 cursor = conn.execute("""
                 INSERT INTO notification_logs (
                     user_id,
-                    message,
+                    message_text,
                     status,
                     error_message,
-                    created_at
+                    sent_at
                 ) VALUES (?, ?, ?, ?, ?)
                 """, (
                     log.user_id,
@@ -130,10 +130,10 @@ class NotificationLogRepository(BaseRepository):
                 SELECT 
                     id,
                     user_id,
-                    message,
+                    message_text as message,
                     status,
                     error_message,
-                    created_at
+                    sent_at
                 FROM notification_logs
                 WHERE id = ?
                 """, (log_id,)).fetchone()
@@ -147,7 +147,7 @@ class NotificationLogRepository(BaseRepository):
                     message=log_data['message'],
                     status=log_data['status'],
                     error_message=log_data['error_message'],
-                    created_at=log_data['created_at']
+                    created_at=log_data['sent_at']
                 )
                 
         except Exception as e:
@@ -171,13 +171,13 @@ class NotificationLogRepository(BaseRepository):
                 SELECT 
                     id,
                     user_id,
-                    message,
+                    message_text as message,
                     status,
                     error_message,
-                    created_at
+                    sent_at
                 FROM notification_logs
                 WHERE user_id = ?
-                ORDER BY created_at DESC
+                ORDER BY sent_at DESC
                 LIMIT ?
                 """, (user_id, limit)).fetchall()
                 
@@ -189,7 +189,7 @@ class NotificationLogRepository(BaseRepository):
                         message=log_data['message'],
                         status=log_data['status'],
                         error_message=log_data['error_message'],
-                        created_at=log_data['created_at']
+                        created_at=log_data['sent_at']
                     ))
                     
                 return logs
@@ -215,13 +215,13 @@ class NotificationLogRepository(BaseRepository):
                 SELECT 
                     id,
                     user_id,
-                    message,
+                    message_text as message,
                     status,
                     error_message,
-                    created_at
+                    sent_at
                 FROM notification_logs
                 WHERE status = ?
-                ORDER BY created_at DESC
+                ORDER BY sent_at DESC
                 LIMIT ?
                 """, (status, limit)).fetchall()
                 
@@ -233,7 +233,7 @@ class NotificationLogRepository(BaseRepository):
                         message=log_data['message'],
                         status=log_data['status'],
                         error_message=log_data['error_message'],
-                        created_at=log_data['created_at']
+                        created_at=log_data['sent_at']
                     ))
                     
                 return logs
@@ -264,13 +264,13 @@ class NotificationLogRepository(BaseRepository):
                 SELECT 
                     id,
                     user_id,
-                    message,
+                    message_text as message,
                     status,
                     error_message,
-                    created_at
+                    sent_at
                 FROM notification_logs
-                WHERE created_at BETWEEN ? AND ?
-                ORDER BY created_at DESC
+                WHERE sent_at BETWEEN ? AND ?
+                ORDER BY sent_at DESC
                 LIMIT ?
                 """, (start_date_str, end_date_str, limit)).fetchall()
                 
@@ -282,7 +282,7 @@ class NotificationLogRepository(BaseRepository):
                         message=log_data['message'],
                         status=log_data['status'],
                         error_message=log_data['error_message'],
-                        created_at=log_data['created_at']
+                        created_at=log_data['sent_at']
                     ))
                     
                 return logs
@@ -307,12 +307,12 @@ class NotificationLogRepository(BaseRepository):
                 SELECT 
                     id,
                     user_id,
-                    message,
+                    message_text as message,
                     status,
                     error_message,
-                    created_at
+                    sent_at
                 FROM notification_logs
-                ORDER BY created_at DESC
+                ORDER BY sent_at DESC
                 LIMIT ?
                 """, (limit,)).fetchall()
                 
@@ -324,7 +324,7 @@ class NotificationLogRepository(BaseRepository):
                         message=log_data['message'],
                         status=log_data['status'],
                         error_message=log_data['error_message'],
-                        created_at=log_data['created_at']
+                        created_at=log_data['sent_at']
                     ))
                     
                 return logs
@@ -352,13 +352,13 @@ class NotificationLogRepository(BaseRepository):
                 count = conn.execute("""
                 SELECT COUNT(*) as count
                 FROM notification_logs
-                WHERE created_at < ?
+                WHERE sent_at < ?
                 """, (cutoff_date,)).fetchone()['count']
                 
                 # Удаляем записи
                 conn.execute("""
                 DELETE FROM notification_logs
-                WHERE created_at < ?
+                WHERE sent_at < ?
                 """, (cutoff_date,))
                 
                 logger.info(f"Удалены записи журнала старше {days} дней: {count} записей")
@@ -384,13 +384,13 @@ class NotificationLogRepository(BaseRepository):
                 SELECT 
                     id,
                     user_id,
-                    message,
+                    message_text as message,
                     status,
                     error_message,
-                    created_at
+                    sent_at
                 FROM notification_logs
                 WHERE status = 'error' AND error_message IS NOT NULL
-                ORDER BY created_at DESC
+                ORDER BY sent_at DESC
                 LIMIT ?
                 """, (limit,)).fetchall()
                 
@@ -402,7 +402,7 @@ class NotificationLogRepository(BaseRepository):
                         message=log_data['message'],
                         status=log_data['status'],
                         error_message=log_data['error_message'],
-                        created_at=log_data['created_at']
+                        created_at=log_data['sent_at']
                     ))
                     
                 return logs
@@ -432,7 +432,7 @@ class NotificationLogRepository(BaseRepository):
                     status,
                     COUNT(*) as count
                 FROM notification_logs
-                WHERE created_at BETWEEN ? AND ?
+                WHERE sent_at BETWEEN ? AND ?
                 GROUP BY status
                 """, (start_date_str, end_date_str)).fetchall()
                 

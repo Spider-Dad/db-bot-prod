@@ -199,7 +199,7 @@ class DatabaseManager:
                 logger.info("Настройки по умолчанию успешно добавлены")
 
         except Exception as e:
-            logger.error(f"Ошибка инициализации настроек: {str(e)}")
+            logger.error(f"Ошибка при инициализации настроек по умолчанию: {str(e)}")
             raise
             
     def check_table_structure(self):
