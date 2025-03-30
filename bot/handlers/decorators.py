@@ -46,7 +46,8 @@ def admin_required(func: Callable) -> Callable:
         # Если пользователь не является администратором
         self.bot.send_message(
             message.chat.id,
-            f"{EMOJI['error']} <b>Ошибка:</b> У вас нет прав для выполнения этой команды."
+            f"{EMOJI['error']} <b>Ошибка:</b> У вас нет прав для выполнения этой команды.",
+            parse_mode='HTML'
         )
         logger.warning(f"Попытка несанкционированного доступа к admin-команде от пользователя {user_id}")
         return None
@@ -85,8 +86,10 @@ def registered_user_required(func: Callable) -> Callable:
         self.bot.send_message(
             message.chat.id,
             f"{EMOJI['warning']} <b>Доступ ограничен</b>\n\n"
-            f"Вы не зарегистрированы в системе. Ваша заявка на регистрацию ожидает "
-            f"подтверждения администратором. Пожалуйста, дождитесь подтверждения."
+            f"Вы не зарегистрированы в системе.\n"
+            f"Если вы уже отправляли запрос на регистрацию, "
+            f"пожалуйста, дождитесь подтверждения администратором.",
+            parse_mode='HTML'
         )
         logger.warning(f"Попытка доступа к функциям бота от незарегистрированного пользователя {user_id}")
         return None

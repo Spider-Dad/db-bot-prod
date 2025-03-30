@@ -229,7 +229,7 @@ class UserHandler(BaseHandler):
                 return
             
             # Формируем сообщение со списком дней рождений, сгруппированным по месяцам
-            birthdays_text = f"👥 <b>Управление пользователями...</b>\n\n📋 Список дней рождения:\n\n"
+            birthdays_text = f"{EMOJI['gift']} <b>Дни рождения</b>\n\n"
             
             current_month = None
             
@@ -241,7 +241,7 @@ class UserHandler(BaseHandler):
                     if current_month is not None:
                         birthdays_text += "\n"  # Добавляем перенос строки между месяцами
                     current_month = month_num
-                    birthdays_text += f"📅 <b>{MONTHS_RU[month_num]['nom']}:</b>\n"
+                    birthdays_text += f"{EMOJI['calendar']} <b>{MONTHS_RU[month_num]['nom']}:</b>\n"
                 
                 # Форматируем имя пользователя
                 first_name = birthday.get('first_name', '')
@@ -253,7 +253,7 @@ class UserHandler(BaseHandler):
                 date_str = f"{birth_date_obj.day:02d} {MONTHS_RU[month_num]['gen']}"
                 
                 # Добавляем строку с днем рождения
-                birthdays_text += f"👤 {name} - {date_str}\n"
+                birthdays_text += f"{EMOJI['birthday']} {name} - {date_str}\n"
             
             self.send_message(message.chat.id, birthdays_text)
             logger.info(f"Отправлен полный список дней рождения пользователю {message.from_user.id}")
@@ -900,7 +900,7 @@ class UserHandler(BaseHandler):
                 text = f"{EMOJI['info']} В базе данных нет дней рождения."
             else:
                 # Формируем сообщение со списком дней рождений, сгруппированным по месяцам
-                text = f"👥 <b>Управление пользователями...</b>\n\n📋 Список дней рождения:\n\n"
+                text = f"{EMOJI['gift']} <b>Дни рождения</b>\n\n"
                 
                 current_month = None
                 
@@ -912,7 +912,7 @@ class UserHandler(BaseHandler):
                         if current_month is not None:
                             text += "\n"  # Добавляем перенос строки между месяцами
                         current_month = month_num
-                        text += f"📅 <b>{MONTHS_RU[month_num]['nom']}:</b>\n"
+                        text += f"{EMOJI['calendar']} <b>{MONTHS_RU[month_num]['nom']}:</b>\n"
                     
                     # Форматируем имя пользователя
                     first_name = birthday.get('first_name', '')
@@ -924,7 +924,7 @@ class UserHandler(BaseHandler):
                     date_str = f"{birth_date_obj.day:02d} {MONTHS_RU[month_num]['gen']}"
                     
                     # Добавляем строку с днем рождения
-                    text += f"👤 {name} - {date_str}\n"
+                    text += f"{EMOJI['birthday']} {name} - {date_str}\n"
             
             # Создаем клавиатуру с кнопкой "Назад"
             keyboard = types.InlineKeyboardMarkup()

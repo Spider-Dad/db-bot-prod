@@ -12,7 +12,7 @@ from telebot import types
 from bot.constants import EMOJI
 from bot.services.user_service import UserService
 from .base_handler import BaseHandler
-from .decorators import log_errors
+from .decorators import log_errors, registered_user_required
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +42,7 @@ class GameHandler(BaseHandler):
         self.bot.message_handler(commands=['game2048'])(self.game_2048)
         self.bot.message_handler(commands=['writemate'])(self.writemate)
     
+    @registered_user_required
     @log_errors
     def game_2048(self, message: types.Message) -> None:
         """
@@ -51,18 +52,6 @@ class GameHandler(BaseHandler):
             message: Сообщение от пользователя
         """
         try:
-            user_id = message.from_user.id
-            
-            # Проверяем доступ (пользователь должен быть администратором или существовать в базе)
-            user_exists = self.user_service.get_user_by_id(user_id) is not None
-            
-            if not self.is_admin(user_id) and not user_exists:
-                self.send_message(
-                    message.chat.id,
-                    "⛔ У вас нет доступа к этой функции. Пожалуйста, обратитесь к администратору для получения доступа."
-                )
-                return
-            
             # Создаем кнопку для запуска мини-приложения
             keyboard = types.InlineKeyboardMarkup()
             game_button = types.InlineKeyboardButton(
@@ -78,7 +67,7 @@ class GameHandler(BaseHandler):
                 reply_markup=keyboard
             )
             
-            logger.info(f"Пользователь {user_id} запросил доступ к игре 2048")
+            logger.info(f"Пользователь {message.from_user.id} запросил доступ к игре 2048")
             
         except Exception as e:
             logger.error(f"Ошибка при запуске игры 2048: {str(e)}")
@@ -87,6 +76,7 @@ class GameHandler(BaseHandler):
                 f"{EMOJI['error']} <b>Ошибка:</b> {str(e)}"
             )
     
+    @registered_user_required
     @log_errors
     def writemate(self, message: types.Message) -> None:
         """
@@ -96,8 +86,6 @@ class GameHandler(BaseHandler):
             message: Сообщение от пользователя
         """
         try:
-            user_id = message.from_user.id
-            
             # URL к сервису
             url = "https://t.me/PlayToTime_bot/WriteMate"
             
@@ -119,7 +107,7 @@ class GameHandler(BaseHandler):
                 reply_markup=keyboard
             )
             
-            logger.info(f"Пользователь {user_id} запросил доступ к сервису ПишиЛегко")
+            logger.info(f"Пользователь {message.from_user.id} запросил доступ к сервису ПишиЛегко")
             
         except Exception as e:
             logger.error(f"Ошибка при запуске сервиса ПишиЛегко: {str(e)}")
