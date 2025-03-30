@@ -52,6 +52,16 @@ class BaseHandler:
         Returns:
             True, если пользователь является администратором, иначе False
         """
+        # Проверяем сначала в базе данных
+        try:
+            if hasattr(self, 'user_service'):
+                user = self.user_service.get_user_by_telegram_id(user_id)
+                if user and user.is_admin:
+                    return True
+        except Exception as e:
+            logger.error(f"Ошибка при проверке администратора в базе данных: {str(e)}")
+            
+        # Если нет в БД или произошла ошибка, проверяем в конфигурации
         return user_id in ADMIN_IDS
     
     def is_registered_user(self, user_id: int) -> bool:
