@@ -16,7 +16,7 @@ from bot.core.models import User
 from bot.services.user_service import UserService
 from bot.constants import EMOJI, ERROR_MESSAGES, MONTHS_RU
 from .base_handler import BaseHandler
-from .decorators import admin_required, log_errors, command_args
+from .decorators import admin_required, log_errors, command_args, registered_user_required
 
 logger = logging.getLogger(__name__)
 
@@ -78,32 +78,66 @@ class UserHandler(BaseHandler):
             message: Сообщение от пользователя
         """
         try:
-            # Проверяем, является ли пользователь администратором
-            is_admin = self.is_admin(message.from_user.id)
+            # Получаем информацию о пользователе
+            telegram_id = message.from_user.id
+            username = message.from_user.username
+            first_name = message.from_user.first_name
+            last_name = message.from_user.last_name
             
-            # Приветственное сообщение с инструкциями
-            welcome_text = (
-                f"{EMOJI['wave']} <b>Добро пожаловать!</b>\n\n"
-                f"Этот бот помогает отслеживать дни рождения и отправлять уведомления.\n\n"
-            )
+            # Проверяем, есть ли у пользователя username
+            if not username:
+                # Сообщаем о необходимости установить username в Telegram
+                no_username_text = (
+                    f"{EMOJI['warning']} <b>Для регистрации в боте необходимо установить имя пользователя (@username) в Telegram</b>\n\n"
+                    f"Для этого:\n"
+                    f"1. Откройте настройки Telegram\n"
+                    f"2. В разделе 'Аккаунт' нажмите на поле 'Имя пользователя' и установите его\n"
+                    f"3. После установки имени пользователя вернитесь в бот и снова нажмите /start"
+                )
+                self.send_message(message.chat.id, no_username_text)
+                logger.info(f"Пользователь {telegram_id} не имеет username, отправлена инструкция")
+                return
             
-            # Добавляем инструкции в зависимости от прав пользователя
-            if is_admin:
-                welcome_text += (
+            # Проверяем, существует ли пользователь в базе данных
+            existing_user = self.user_service.get_user_by_telegram_id(telegram_id)
+            
+            # Если пользователь администратор, сразу показываем основное меню
+            if self.is_admin(telegram_id):
+                welcome_text = (
+                    f"{EMOJI['wave']} <b>Добро пожаловать!</b>\n\n"
+                    f"Этот бот помогает отслеживать дни рождения и отправлять уведомления.\n\n"
                     f"{EMOJI['admin']} <b>Вы администратор бота</b>\n\n"
                     f"У вас есть доступ ко всем функциям бота.\n"
                     f"Выберите нужный раздел в меню ниже:"
                 )
-            else:
-                welcome_text += (
+                keyboard = self.keyboard_manager.create_main_menu(is_admin=True)
+                self.send_message(message.chat.id, welcome_text, reply_markup=keyboard)
+                logger.info(f"Администратор {telegram_id} запустил бота")
+                return
+            
+            # Если пользователь уже существует в базе, показываем основное меню
+            if existing_user:
+                welcome_text = (
+                    f"{EMOJI['wave']} <b>Добро пожаловать!</b>\n\n"
+                    f"Этот бот помогает отслеживать дни рождения и отправлять уведомления.\n\n"
                     f"Выберите нужный раздел в меню ниже:"
                 )
+                keyboard = self.keyboard_manager.create_main_menu(is_admin=False)
+                self.send_message(message.chat.id, welcome_text, reply_markup=keyboard)
+                logger.info(f"Пользователь {telegram_id} запустил бота")
+                return
             
-            # Отправляем приветственное сообщение с клавиатурой
-            keyboard = self.keyboard_manager.create_main_menu(is_admin)
-            self.send_message(message.chat.id, welcome_text, reply_markup=keyboard)
+            # Если пользователь не существует, отправляем запрос на регистрацию администраторам
+            self.send_registration_request_to_admins(message.from_user)
             
-            logger.info(f"Пользователь {message.from_user.id} запустил бота")
+            # Сообщаем пользователю о запросе на регистрацию
+            waiting_text = (
+                f"{EMOJI['hourglass']} <b>Запрос на регистрацию отправлен</b>\n\n"
+                f"Ваша заявка на регистрацию принята! Пожалуйста, подождите некоторое время, пока "
+                f"администратор добавит вас в систему. Вы получите уведомление, когда регистрация будет завершена."
+            )
+            self.send_message(message.chat.id, waiting_text)
+            logger.info(f"Новый пользователь {telegram_id} с username @{username} запросил регистрацию")
             
         except Exception as e:
             logger.error(f"Ошибка в обработчике команды start: {str(e)}")
@@ -112,6 +146,70 @@ class UserHandler(BaseHandler):
                 f"{EMOJI['error']} <b>Ошибка:</b> {str(e)}"
             )
     
+    def send_registration_request_to_admins(self, user: types.User) -> None:
+        """
+        Отправляет запрос на регистрацию всем администраторам.
+        
+        Args:
+            user: Пользователь Telegram, запрашивающий регистрацию
+        """
+        try:
+            # Получаем список Telegram ID всех администраторов
+            admin_telegram_ids = self.user_service.get_admin_telegram_ids()
+            
+            # Если в базе нет администраторов, используем список из конфигурации
+            if not admin_telegram_ids:
+                admin_telegram_ids = ADMIN_IDS
+            
+            # Формируем сообщение для администраторов с готовой командой для добавления
+            admin_message = (
+                f"{EMOJI['bell']} <b>Новый запрос на доступ!</b>\n\n"
+                f"👤 Пользователь: {user.first_name or ''} {user.last_name or ''}\n"
+                f"🔍 Username: @{user.username}\n"
+                f"🆔 Telegram ID: {user.id}\n\n"
+                f"Для добавления пользователя используй следующую команду, заменив Имя Фамилия и ГГГГ-ММ-ДД на реальные данные пользователя:\n\n"
+                f"<code>/add_user @{user.username} Имя Фамилия ГГГГ-ММ-ДД {user.id}</code>\n\n"
+                f"<b>Telegram ID пользователя ({user.id}) уже добавлен в команду!</b>"
+            )
+            
+            # Отправляем сообщение всем администраторам
+            for admin_id in admin_telegram_ids:
+                self.send_message(
+                    admin_id,
+                    admin_message
+                )
+            
+            logger.info(f"Запрос на регистрацию от @{user.username} отправлен администраторам")
+        
+        except Exception as e:
+            logger.error(f"Ошибка при отправке запроса на регистрацию администраторам: {str(e)}")
+    
+    def notify_user_added(self, telegram_id: int, username: str) -> None:
+        """
+        Уведомляет пользователя о успешной регистрации в боте.
+        
+        Args:
+            telegram_id: Telegram ID пользователя
+            username: Username пользователя
+        """
+        try:
+            welcome_text = (
+                f"{EMOJI['success']} <b>Доступ предоставлен!</b>\n\n"
+                f"Ваша заявка на регистрацию успешно выполнена, и теперь вы можете "
+                f"использовать бот. Выберите нужный раздел в меню ниже:"
+            )
+            
+            # Отправляем сообщение пользователю с клавиатурой
+            keyboard = self.keyboard_manager.create_main_menu(is_admin=False)
+            self.send_message(telegram_id, welcome_text, reply_markup=keyboard)
+            
+            logger.info(f"Пользователь @{username} (ID: {telegram_id}) уведомлен о регистрации")
+        
+        except Exception as e:
+            logger.error(f"Ошибка при уведомлении пользователя о регистрации: {str(e)}")
+    
+    @registered_user_required
+    @log_errors
     def list_birthdays(self, message: types.Message) -> None:
         """
         Обработчик команды /birthdays.
@@ -193,9 +291,9 @@ class UserHandler(BaseHandler):
                     message.chat.id, 
                     f"{EMOJI['plus']} <b>Добавление пользователя</b>\n\n"
                     f"Для добавления пользователя отправьте команду в формате:\n"
-                    f"<code>/add_user @username Имя Фамилия ДД.ММ.ГГГГ</code>\n\n"
+                    f"<code>/add_user @username Имя Фамилия ГГГГ-ММ-ДД [Telegram_ID]</code>\n\n"
                     f"Например:\n"
-                    f"<code>/add_user @username Иван Иванов 01.01.1990</code>\n\n"
+                    f"<code>/add_user @username Иван Иванов 2000-01-01 1234567890</code>\n\n"
                     f"После добавления пользователь будет доступен в справочнике и получать уведомления.",
                     reply_markup=keyboard
                 )
@@ -219,27 +317,78 @@ class UserHandler(BaseHandler):
             name = args[1] if len(args) > 1 else username
             last_name = args[2] if len(args) > 2 else ""
             
-            # Если указана дата рождения, парсим её
+            # Получаем Telegram ID пользователя из аргументов команды
+            # Ищем последний числовой аргумент длиной больше 7 символов (это скорее всего Telegram ID)
+            telegram_id = None
             birthday = None
+            
+            # Проверяем, может ли последний аргумент быть Telegram ID
             if len(args) > 3:
+                last_arg = args[-1]
+                if last_arg.isdigit() and len(last_arg) > 7:
+                    telegram_id = int(last_arg)
+                    logger.info(f"Используем Telegram ID из последнего аргумента команды: {telegram_id}")
+                    # Если последний аргумент - ID, значит предпоследний может быть датой
+                    if len(args) > 4:
+                        birthday_str = args[-2]
+                        try:
+                            # Пробуем парсить как дату
+                            try:
+                                birthday = datetime.strptime(birthday_str, '%d.%m.%Y').strftime('%Y-%m-%d')
+                            except ValueError:
+                                birthday = datetime.strptime(birthday_str, '%Y-%m-%d').strftime('%Y-%m-%d')
+                        except ValueError:
+                            # Если не получилось, это не дата
+                            birthday = None
+                else:
+                    # Последний аргумент не ID, пробуем его как дату
+                    try:
+                        birthday_str = last_arg
+                        try:
+                            birthday = datetime.strptime(birthday_str, '%d.%m.%Y').strftime('%Y-%m-%d')
+                        except ValueError:
+                            birthday = datetime.strptime(birthday_str, '%Y-%m-%d').strftime('%Y-%m-%d')
+                    except ValueError:
+                        # Если не получилось и это не дата, сообщаем об ошибке
+                        self.send_message(
+                            message.chat.id,
+                            f"{EMOJI['error']} <b>Ошибка:</b> Неверный формат даты рождения. Используйте формат ДД.ММ.ГГГГ или ГГГГ-ММ-ДД."
+                        )
+                        return
+            
+            # Если нам не передали Telegram ID, пытаемся получить его через API
+            if not telegram_id:
                 try:
-                    birthday_str = args[3]
-                    birthday = datetime.strptime(birthday_str, '%d.%m.%Y').strftime('%Y-%m-%d')
-                except ValueError:
+                    # Это работает только если пользователь уже взаимодействовал с ботом
+                    user_info = self.bot.get_chat(f"@{username}")
+                    if user_info:
+                        telegram_id = user_info.id
+                        logger.info(f"Получен Telegram ID через API: {telegram_id}")
+                except Exception as e:
+                    telegram_id = None
+                    logger.warning(f"Не удалось получить Telegram ID для @{username} через API: {str(e)}")
+                
+                # Если не смогли получить ID, сообщаем об этом
+                if not telegram_id:
                     self.send_message(
                         message.chat.id,
-                        f"{EMOJI['error']} <b>Ошибка:</b> Неверный формат даты рождения. Используйте формат ДД.ММ.ГГГГ."
+                        f"{EMOJI['warning']} <b>Не удалось автоматически получить Telegram ID пользователя @{username}</b>\n\n"
+                        f"Пожалуйста, добавьте Telegram ID в команду:\n"
+                        f"<code>/add_user @{username} {name} {last_name} {birthday or 'ГГГГ-ММ-ДД'} ID_ПОЛЬЗОВАТЕЛЯ</code>\n\n"
+                        f"Telegram ID доступен в сообщении запроса на регистрацию."
                     )
                     return
             
-            # Создаем пользователя
+            # Создаем объект пользователя
             user = User(
+                telegram_id=telegram_id,
                 username=username,
-                name=name,
+                first_name=name,
                 last_name=last_name,
-                birthday=birthday,
+                birth_date=birthday,
                 is_admin=False,
-                notifications_enabled=True
+                is_subscribed=True,
+                is_notifications_enabled=True,
             )
             
             # Добавляем пользователя в базу
@@ -250,17 +399,21 @@ class UserHandler(BaseHandler):
                 success_message = f"{EMOJI['success']} Пользователь @{username} успешно добавлен."
                 
                 if birthday:
-                    birth_date = datetime.strptime(birthday, '%Y-%m-%d')
-                    success_message += f"\nДень рождения: {birth_date.strftime('%d.%m.%Y')}"
+                    success_message += f" Дата рождения: {birthday}."
+                
+                success_message += f" Отправляю ему уведомление."
+                
+                # Уведомляем пользователя о регистрации
+                self.notify_user_added(telegram_id, username)
                 
                 self.send_message(message.chat.id, success_message)
-                logger.info(f"Добавлен пользователь @{username} администратором {message.from_user.id}")
+                logger.info(f"Администратор {message.from_user.id} добавил пользователя @{username}")
             else:
                 self.send_message(
                     message.chat.id,
-                    f"{EMOJI['error']} <b>Ошибка:</b> Не удалось добавить пользователя."
+                    f"{EMOJI['error']} <b>Ошибка:</b> Не удалось добавить пользователя @{username}."
                 )
-                
+        
         except Exception as e:
             logger.error(f"Ошибка при добавлении пользователя: {str(e)}")
             self.send_message(
@@ -687,7 +840,17 @@ class UserHandler(BaseHandler):
             call: Callback-запрос от кнопки
         """
         try:
-            is_admin = self.is_admin(call.from_user.id)
+            # Проверяем регистрацию пользователя
+            user_id = call.from_user.id
+            if not self.is_registered_user(user_id) and not self.is_admin(user_id):
+                self.answer_callback_query(
+                    call.id, 
+                    "Вы не зарегистрированы в системе. Ожидайте подтверждения администратора.", 
+                    show_alert=True
+                )
+                return
+            
+            is_admin = self.is_admin(user_id)
             
             # Текст для главного меню
             menu_text = (
@@ -720,6 +883,16 @@ class UserHandler(BaseHandler):
             call: Callback-запрос от кнопки
         """
         try:
+            # Проверяем регистрацию пользователя
+            user_id = call.from_user.id
+            if not self.is_registered_user(user_id) and not self.is_admin(user_id):
+                self.answer_callback_query(
+                    call.id, 
+                    "Вы не зарегистрированы в системе. Ожидайте подтверждения администратора.", 
+                    show_alert=True
+                )
+                return
+            
             # Получаем всех пользователей с днями рождения
             birthdays_list = self.user_service.get_all_users_with_birthdays()
             
@@ -1054,9 +1227,9 @@ class UserHandler(BaseHandler):
             text = (
                 f"{EMOJI['plus']} <b>Добавление пользователя</b>\n\n"
                 f"Для добавления пользователя отправьте команду в формате:\n"
-                f"<code>/add_user @username Имя Фамилия ДД.ММ.ГГГГ</code>\n\n"
+                f"<code>/add_user @username Имя Фамилия ГГГГ-ММ-ДД</code>\n\n"
                 f"Например:\n"
-                f"<code>/add_user @username Иван Иванов 01.01.1990</code>\n\n"
+                f"<code>/add_user @username Иван Иванов 2000-01-01</code>\n\n"
                 f"После добавления пользователь будет доступен в справочнике и получать уведомления."
             )
             

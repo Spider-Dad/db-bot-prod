@@ -77,6 +77,7 @@ EMOJI = {
     "info": "ℹ️",
     "process": "⏳",
     "loading": "⏳",
+    "hourglass": "⌛",
     
     # Категории
     "birthday": "🎂",

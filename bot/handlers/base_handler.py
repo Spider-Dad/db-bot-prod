@@ -54,6 +54,30 @@ class BaseHandler:
         """
         return user_id in ADMIN_IDS
     
+    def is_registered_user(self, user_id: int) -> bool:
+        """
+        Проверка, зарегистрирован ли пользователь в системе.
+        
+        Args:
+            user_id: Идентификатор пользователя в Telegram
+            
+        Returns:
+            True, если пользователь зарегистрирован, иначе False
+        """
+        # Администраторы всегда считаются зарегистрированными
+        if self.is_admin(user_id):
+            return True
+        
+        # Проверка в базе данных, если у класса есть доступ к сервису пользователей
+        if hasattr(self, 'user_service'):
+            try:
+                user = self.user_service.get_user_by_telegram_id(user_id)
+                return user is not None
+            except Exception as e:
+                logger.error(f"Ошибка при проверке регистрации пользователя: {str(e)}")
+        
+        return False
+    
     def send_message(self, chat_id: int, text: str, parse_mode: str = 'HTML',
                     reply_markup: Optional[Union[telebot.types.InlineKeyboardMarkup, 
                             telebot.types.ReplyKeyboardMarkup, 

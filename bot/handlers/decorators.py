@@ -54,6 +54,46 @@ def admin_required(func: Callable) -> Callable:
     return wrapper
 
 
+def registered_user_required(func: Callable) -> Callable:
+    """
+    Декоратор для проверки, зарегистрирован ли пользователь в системе.
+    
+    Args:
+        func: Декорируемая функция
+        
+    Returns:
+        Обертка для функции, проверяющая регистрацию пользователя
+    """
+    @functools.wraps(func)
+    def wrapper(self, message: types.Message, *args, **kwargs) -> Any:
+        user_id = message.from_user.id
+        
+        # Администраторы имеют доступ к любым функциям
+        if user_id in ADMIN_IDS:
+            return func(self, message, *args, **kwargs)
+            
+        # Проверяем, существует ли пользователь в базе данных
+        try:
+            if hasattr(self, 'user_service'):
+                user = self.user_service.get_user_by_telegram_id(user_id)
+                if user:
+                    return func(self, message, *args, **kwargs)
+        except Exception as e:
+            logger.error(f"Ошибка при проверке регистрации пользователя: {str(e)}")
+            
+        # Если пользователь не зарегистрирован
+        self.bot.send_message(
+            message.chat.id,
+            f"{EMOJI['warning']} <b>Доступ ограничен</b>\n\n"
+            f"Вы не зарегистрированы в системе. Ваша заявка на регистрацию ожидает "
+            f"подтверждения администратором. Пожалуйста, дождитесь подтверждения."
+        )
+        logger.warning(f"Попытка доступа к функциям бота от незарегистрированного пользователя {user_id}")
+        return None
+        
+    return wrapper
+
+
 def log_errors(func: Callable) -> Callable:
     """
     Декоратор для логирования ошибок при выполнении функции.
