@@ -14,7 +14,7 @@ from datetime import datetime
 from bot.core.models import NotificationTemplate
 from bot.services.template_service import TemplateService
 from bot.services.user_service import UserService
-from bot.constants import EMOJI, ERROR_MESSAGES, ALLOWED_HTML_TAGS, TEMPLATE_VARIABLES, TEMPLATE_HELP_TEXT
+from bot.constants import EMOJI, ERROR_MESSAGES, ALLOWED_HTML_TAGS, TEMPLATE_VARIABLES, TEMPLATE_HELP_TEXT, SAMPLE_TEMPLATE_DATA
 from .base_handler import BaseHandler
 from .decorators import admin_required, log_errors, command_args
 
@@ -45,10 +45,8 @@ class TemplateHandler(BaseHandler):
         self.setting_service = setting_service
         
     def register_handlers(self) -> None:
-        """
-        Регистрация обработчиков для шаблонов.
-        """
-        # Регистрация обработчиков команд для шаблонов
+        """Регистрация обработчиков."""
+        # Команды для работы с шаблонами
         self.bot.register_message_handler(self.get_templates, commands=['get_templates'])
         self.bot.register_message_handler(self.set_template, commands=['set_template'])
         self.bot.register_message_handler(self.update_template, commands=['update_template'])
@@ -60,17 +58,17 @@ class TemplateHandler(BaseHandler):
         self.bot.register_message_handler(self.help_template, commands=['help_template'])
         self.bot.register_message_handler(self.menu_templates, commands=['menu_templates'])
         
-        # Регистрация обработчиков callback-запросов для шаблонов
-        self.bot.register_callback_query_handler(self.cmd_add_template_callback, func=lambda call: call.data == 'cmd_add_template')
-        self.bot.register_callback_query_handler(self.cmd_remove_template_callback, func=lambda call: call.data == 'cmd_remove_template')
+        # Callback-обработчики для кнопок в меню
+        self.bot.register_callback_query_handler(self.menu_templates_callback, func=lambda call: call.data == 'menu_templates')
         self.bot.register_callback_query_handler(self.cmd_templates_list_callback, func=lambda call: call.data == 'cmd_templates_list')
+        self.bot.register_callback_query_handler(self.cmd_add_template_callback, func=lambda call: call.data == 'cmd_add_template')
         self.bot.register_callback_query_handler(self.cmd_update_template_callback, func=lambda call: call.data == 'cmd_update_template')
+        self.bot.register_callback_query_handler(self.cmd_remove_template_callback, func=lambda call: call.data == 'cmd_remove_template')
         self.bot.register_callback_query_handler(self.cmd_test_template_callback, func=lambda call: call.data == 'cmd_test_template')
-        self.bot.register_callback_query_handler(self.cmd_preview_template_callback, func=lambda call: call.data == 'cmd_preview_template')
+        self.bot.register_callback_query_handler(self.cmd_preview_template_callback, func=lambda call: call.data == 'cmd_preview_template' or call.data.startswith('cmd_preview_template:'))
         self.bot.register_callback_query_handler(self.cmd_activate_template_callback, func=lambda call: call.data == 'cmd_activate_template')
         self.bot.register_callback_query_handler(self.cmd_deactivate_template_callback, func=lambda call: call.data == 'cmd_deactivate_template')
         self.bot.register_callback_query_handler(self.cmd_template_help_callback, func=lambda call: call.data == 'cmd_template_help')
-        self.bot.register_callback_query_handler(self.menu_templates_callback, func=lambda call: call.data == 'menu_templates')
     
     @admin_required
     @log_errors
@@ -107,17 +105,29 @@ class TemplateHandler(BaseHandler):
                 template_text = self._format_template_info(template)
                 
                 # Отправляем информацию о шаблоне
-                # Если это последний шаблон, добавляем кнопку "Назад"
+                # Если это последний шаблон, добавляем кнопки "Предпросмотр" и "Назад"
                 if i == len(templates) - 1:
                     keyboard = types.InlineKeyboardMarkup()
+                    preview_btn = types.InlineKeyboardButton(
+                        text=f"{EMOJI['eye']} Предпросмотр", 
+                        callback_data=f"cmd_preview_template:{template.id}"
+                    )
                     back_btn = types.InlineKeyboardButton(
                         text=f"{EMOJI['back']} Назад", 
                         callback_data="menu_templates"
                     )
+                    keyboard.add(preview_btn)
                     keyboard.add(back_btn)
                     self.send_message(message.chat.id, template_text, reply_markup=keyboard)
                 else:
-                    self.send_message(message.chat.id, template_text)
+                    # Для не последних шаблонов добавляем только кнопку "Предпросмотр"
+                    keyboard = types.InlineKeyboardMarkup()
+                    preview_btn = types.InlineKeyboardButton(
+                        text=f"{EMOJI['eye']} Предпросмотр", 
+                        callback_data=f"cmd_preview_template:{template.id}"
+                    )
+                    keyboard.add(preview_btn)
+                    self.send_message(message.chat.id, template_text, reply_markup=keyboard)
             
             logger.info(f"Отправлен список шаблонов администратору {message.from_user.id}")
             
@@ -431,6 +441,44 @@ class TemplateHandler(BaseHandler):
                 f"{EMOJI['error']} <b>Ошибка:</b> {str(e)}"
             )
     
+    def _format_preview_template(self, template_id: int) -> Tuple[str, bool]:
+        """
+        Форматирует предпросмотр шаблона с тестовыми данными.
+        
+        Args:
+            template_id: ID шаблона
+            
+        Returns:
+            Tuple[str, bool]: Форматированный текст предпросмотра и флаг успеха
+        """
+        # Получаем шаблон из базы
+        template = self.template_service.get_template_by_id(template_id)
+        
+        if not template:
+            return f"{EMOJI['error']} <b>Ошибка:</b> Шаблон с ID {template_id} не найден.", False
+        
+        # Используем тестовые данные из константы SAMPLE_TEMPLATE_DATA
+        
+        # Форматируем шаблон с примером данных
+        try:
+            formatted_text = self.template_service.format_template(template, SAMPLE_TEMPLATE_DATA)
+            
+            # Формируем предпросмотр
+            preview_text = (
+                f"{EMOJI['template']} <b>Предпросмотр шаблона:</b>\n"
+                f"ID: {template_id}\n"
+                f"Название: {template.name}\n"
+                f"Категория: {template.category}\n\n"
+                f"<b>Текст шаблона:</b>\n{template.template}\n\n"
+                f"<b>С примером данных:</b>\n{formatted_text}"
+            )
+            
+            return preview_text, True
+            
+        except Exception as format_error:
+            error_text = f"{EMOJI['error']} <b>Ошибка форматирования шаблона:</b> {str(format_error)}"
+            return error_text, False
+    
     @admin_required
     @log_errors
     def preview_template(self, message: types.Message) -> None:
@@ -482,54 +530,22 @@ class TemplateHandler(BaseHandler):
                 )
                 return
             
-            # Получаем шаблон из базы
-            template = self.template_service.get_template_by_id(template_id)
+            # Используем общий метод для форматирования предпросмотра
+            preview_text, success = self._format_preview_template(template_id)
             
-            if not template:
-                self.send_message(
-                    message.chat.id,
-                    f"{EMOJI['error']} <b>Ошибка:</b> Шаблон с ID {template_id} не найден."
-                )
-                return
+            # Создаем клавиатуру с кнопкой "Назад"
+            keyboard = types.InlineKeyboardMarkup()
+            back_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['back']} Назад", 
+                callback_data="menu_templates"
+            )
+            keyboard.add(back_btn)
             
-            # Формируем пример данных для предпросмотра
-            sample_data = {
-                'name': 'Иван Иванов',
-                'username': 'ivanov',
-                'date': '01.01.2025',
-                'days_until': 3
-            }
+            # Отправляем предпросмотр или сообщение об ошибке
+            self.send_message(message.chat.id, preview_text, reply_markup=keyboard)
             
-            # Форматируем шаблон с примером данных
-            try:
-                formatted_text = self.template_service.format_template(template, sample_data)
-                
-                # Отправляем предпросмотр
-                preview_text = (
-                    f"{EMOJI['template']} <b>Предпросмотр шаблона:</b>\n"
-                    f"ID: {template_id}\n"
-                    f"Название: {template.name}\n"
-                    f"Категория: {template.category}\n\n"
-                    f"<b>Текст шаблона:</b>\n<code>{template.template}</code>\n\n"
-                    f"<b>С примером данных:</b>\n{formatted_text}"
-                )
-                
-                # Создаем клавиатуру с кнопкой "Назад"
-                keyboard = types.InlineKeyboardMarkup()
-                back_btn = types.InlineKeyboardButton(
-                    text=f"{EMOJI['back']} Назад", 
-                    callback_data="menu_templates"
-                )
-                keyboard.add(back_btn)
-                
-                self.send_message(message.chat.id, preview_text, reply_markup=keyboard)
+            if success:
                 logger.info(f"Отправлен предпросмотр шаблона с ID {template_id} администратору {message.from_user.id}")
-                
-            except Exception as format_error:
-                self.send_message(
-                    message.chat.id,
-                    f"{EMOJI['error']} <b>Ошибка форматирования шаблона:</b> {str(format_error)}"
-                )
                 
         except Exception as e:
             logger.error(f"Ошибка при предпросмотре шаблона: {str(e)}")
@@ -1050,20 +1066,25 @@ class TemplateHandler(BaseHandler):
             # Отвечаем на callback-запрос
             self.answer_callback_query(call.id, "Получение списка шаблонов")
             
-            # Создаем клавиатуру с кнопкой "Назад" для последнего шаблона
-            keyboard = types.InlineKeyboardMarkup()
-            back_btn = types.InlineKeyboardButton(
-                text=f"{EMOJI['back']} Назад", 
-                callback_data="menu_templates"
-            )
-            keyboard.add(back_btn)
-            
-            # Если у нас только один шаблон, показываем его с кнопкой "Назад"
+            # Если у нас только один шаблон, показываем его с кнопками "Предпросмотр" и "Назад"
             if len(templates) == 1:
                 template = templates[0]
                 template_text = self._format_template_info(template)
                 
-                # Редактируем текущее сообщение с первым шаблоном и кнопкой "Назад"
+                # Клавиатура с кнопками "Предпросмотр" и "Назад"
+                keyboard = types.InlineKeyboardMarkup()
+                preview_btn = types.InlineKeyboardButton(
+                    text=f"{EMOJI['eye']} Предпросмотр", 
+                    callback_data=f"cmd_preview_template:{template.id}"
+                )
+                back_btn = types.InlineKeyboardButton(
+                    text=f"{EMOJI['back']} Назад", 
+                    callback_data="menu_templates"
+                )
+                keyboard.add(preview_btn)
+                keyboard.add(back_btn)
+                
+                # Редактируем текущее сообщение с первым шаблоном и кнопками
                 self.bot.edit_message_text(
                     chat_id=call.message.chat.id,
                     message_id=call.message.message_id,
@@ -1072,29 +1093,61 @@ class TemplateHandler(BaseHandler):
                     parse_mode='HTML'
                 )
             else:
-                # Редактируем текущее сообщение с первым шаблоном БЕЗ кнопки "Назад"
+                # Редактируем текущее сообщение с первым шаблоном и кнопкой "Предпросмотр"
                 first_template = templates[0]
                 first_template_text = self._format_template_info(first_template)
+                
+                # Клавиатура с кнопкой "Предпросмотр"
+                keyboard_first = types.InlineKeyboardMarkup()
+                preview_btn_first = types.InlineKeyboardButton(
+                    text=f"{EMOJI['eye']} Предпросмотр", 
+                    callback_data=f"cmd_preview_template:{first_template.id}"
+                )
+                keyboard_first.add(preview_btn_first)
                 
                 self.bot.edit_message_text(
                     chat_id=call.message.chat.id,
                     message_id=call.message.message_id,
                     text=first_template_text,
-                    parse_mode='HTML'  # Без кнопки "Назад"
+                    reply_markup=keyboard_first,
+                    parse_mode='HTML'
                 )
                 
-                # Отправляем промежуточные шаблоны без кнопки
+                # Отправляем промежуточные шаблоны с кнопкой "Предпросмотр"
                 for template in templates[1:-1]:
                     template_text = self._format_template_info(template)
-                    self.send_message(call.message.chat.id, template_text)
+                    
+                    # Клавиатура с кнопкой "Предпросмотр"
+                    keyboard = types.InlineKeyboardMarkup()
+                    preview_btn = types.InlineKeyboardButton(
+                        text=f"{EMOJI['eye']} Предпросмотр", 
+                        callback_data=f"cmd_preview_template:{template.id}"
+                    )
+                    keyboard.add(preview_btn)
+                    
+                    self.send_message(call.message.chat.id, template_text, reply_markup=keyboard)
                 
-                # Отправляем последний шаблон с кнопкой "Назад"
+                # Отправляем последний шаблон с кнопками "Предпросмотр" и "Назад"
                 last_template = templates[-1]
                 last_template_text = self._format_template_info(last_template)
+                
+                # Клавиатура с кнопками "Предпросмотр" и "Назад"
+                keyboard_last = types.InlineKeyboardMarkup()
+                preview_btn_last = types.InlineKeyboardButton(
+                    text=f"{EMOJI['eye']} Предпросмотр", 
+                    callback_data=f"cmd_preview_template:{last_template.id}"
+                )
+                back_btn = types.InlineKeyboardButton(
+                    text=f"{EMOJI['back']} Назад", 
+                    callback_data="menu_templates"
+                )
+                keyboard_last.add(preview_btn_last)
+                keyboard_last.add(back_btn)
+                
                 self.send_message(
                     call.message.chat.id, 
                     last_template_text, 
-                    reply_markup=keyboard
+                    reply_markup=keyboard_last
                 )
             
             logger.info(f"Отправлен список шаблонов администратору {call.from_user.id}")
@@ -1283,6 +1336,39 @@ class TemplateHandler(BaseHandler):
                 self.answer_callback_query(call.id, "У вас нет прав администратора", show_alert=True)
                 return
             
+            # Извлекаем ID шаблона из данных callback, если они есть
+            callback_data = call.data.split(':')
+            if len(callback_data) > 1:
+                try:
+                    template_id = int(callback_data[1])
+                    
+                    # Используем общий метод для форматирования предпросмотра
+                    preview_text, success = self._format_preview_template(template_id)
+                    
+                    # Создаем клавиатуру с кнопкой "Назад"
+                    keyboard = types.InlineKeyboardMarkup()
+                    back_btn = types.InlineKeyboardButton(
+                        text=f"{EMOJI['back']} Назад", 
+                        callback_data="menu_templates"
+                    )
+                    keyboard.add(back_btn)
+                    
+                    # Обновляем сообщение с предпросмотром
+                    self.bot.edit_message_text(
+                        chat_id=call.message.chat.id,
+                        message_id=call.message.message_id,
+                        text=preview_text,
+                        reply_markup=keyboard,
+                        parse_mode='HTML'
+                    )
+                    
+                    # Отвечаем на callback-запрос
+                    self.answer_callback_query(call.id)
+                    return
+                except ValueError:
+                    pass
+            
+            # Если ID шаблона не получен, показываем форму для ввода ID
             # Текст с инструкцией по предпросмотру шаблона
             text = (
                 f"{EMOJI['eye']} <b>Предпросмотр шаблона</b>\n\n"
