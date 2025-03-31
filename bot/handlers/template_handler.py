@@ -1170,28 +1170,26 @@ class TemplateHandler(BaseHandler):
         # Формируем сообщение с полной информацией о шаблоне
         template_text = f"📋 <b>Шаблон #{template_id}</b>\n"
         template_text += f"📝 <b>Название:</b> {name}\n"
-        template_text += f"🔣 <b>Текст:</b>\n\n{text}\n\n"
         template_text += f"📂 <b>Категория:</b> {category}\n"
-        template_text += f"🕒 <b>Создан:</b> {created_at_str}\n"
-        template_text += f"📊 <b>Статус:</b> {status_emoji} {status_text}\n"
+        template_text += f"⏱ <b>Создан:</b> {created_at_str}\n"
+        template_text += f"📊 <b>Статус:</b> {status_emoji} {status_text}\n\n"
         
-        # Если есть настройки уведомлений, добавляем их
+        # Добавляем информацию о настройках уведомлений
+        template_text += f"⚙️ <b>Настройки уведомлений:</b>\n"
         if notification_settings:
-            template_text += f"\n📅 <b>Настройки уведомлений:</b>\n"
             for setting in notification_settings:
-                days_before = setting.days_before
-                time = setting.time
-                is_setting_active = setting.is_active
+                setting_id = setting.id if hasattr(setting, 'id') else 'N/A'
+                days_before = setting.days_before if hasattr(setting, 'days_before') else 0
+                time = setting.time if hasattr(setting, 'time') else '12:00'
+                is_setting_active = setting.is_active if hasattr(setting, 'is_active') else False
                 setting_status = "✅" if is_setting_active else "❌"
+                setting_status_text = "Активна" if is_setting_active else "Неактивна"
                 
-                if days_before == 0:
-                    days_text = "В день события"
-                elif days_before == 1:
-                    days_text = "За 1 день"
-                else:
-                    days_text = f"За {days_before} дней"
-                
-                template_text += f"⏰ {setting_status} {days_text} в {time}\n"
+                template_text += f"• id настройки #{setting_id}: За {days_before} дней в {time} - {setting_status} {setting_status_text}\n"
+        else:
+            template_text += f"• ❌ настройки уведомлений для шаблона отсутствуют\n"
+        
+        template_text += f"\n🔤 <b>Текст шаблона:</b>\n\n{text}\n"
         
         return template_text
     
