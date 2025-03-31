@@ -239,7 +239,10 @@ class TemplateHandler(BaseHandler):
             
             # Проверяем валидность переменных шаблона
             if not self._validate_template_variables(text):
-                valid_vars = ", ".join([f"{{{v}}}" for v in TEMPLATE_VARIABLES])
+                # Получаем список допустимых переменных без фигурных скобок для отображения
+                allowed_vars = [var.strip('{}') for var in TEMPLATE_VARIABLES]
+                valid_vars = ", ".join(["{" + v + "}" for v in allowed_vars])
+                
                 self.send_message(
                     message.chat.id,
                     f"{EMOJI['error']} <b>Ошибка:</b> Шаблон содержит недопустимые переменные.\n\n"
@@ -251,7 +254,7 @@ class TemplateHandler(BaseHandler):
             template = NotificationTemplate(
                 name=name,
                 category=category,
-                text=text,
+                template=text,
                 is_active=True
             )
             
@@ -358,7 +361,10 @@ class TemplateHandler(BaseHandler):
             
             # Проверяем валидность переменных шаблона
             if not self._validate_template_variables(new_text):
-                valid_vars = ", ".join([f"{{{v}}}" for v in TEMPLATE_VARIABLES])
+                # Получаем список допустимых переменных без фигурных скобок для отображения
+                allowed_vars = [var.strip('{}') for var in TEMPLATE_VARIABLES]
+                valid_vars = ", ".join(["{" + v + "}" for v in allowed_vars])
+                
                 self.send_message(
                     message.chat.id,
                     f"{EMOJI['error']} <b>Ошибка:</b> Шаблон содержит недопустимые переменные.\n\n"
@@ -1521,18 +1527,11 @@ class TemplateHandler(BaseHandler):
         Returns:
             True, если все переменные в тексте валидны, иначе False
         """
-        import re
+        from bot.utils.validators import validate_template_variables
         
-        # Ищем все переменные в тексте
-        var_pattern = re.compile(r'\{([^}]+)\}')
-        variables = var_pattern.findall(text)
-        
-        # Проверяем, что все найденные переменные разрешены
-        for var in variables:
-            if var not in TEMPLATE_VARIABLES:
-                return False
-        
-        return True
+        # Используем функцию validate_template_variables из модуля validators
+        is_valid, _ = validate_template_variables(text)
+        return is_valid
     
     @log_errors
     def menu_templates_callback(self, call: types.CallbackQuery) -> None:
