@@ -103,58 +103,8 @@ class TemplateHandler(BaseHandler):
             
             # Для каждого шаблона отправляем отдельное сообщение с полной информацией
             for i, template in enumerate(templates):
-                template_id = template.id
-                name = template.name
-                category = template.category
-                text = template.template
-                is_active = template.is_active
-                created_at = template.created_at
-                
-                # Форматируем дату создания
-                try:
-                    if isinstance(created_at, str):
-                        created_at_obj = datetime.strptime(created_at, "%Y-%m-%d %H:%M:%S")
-                        created_at_str = created_at_obj.strftime("%Y-%m-%d %H:%M:%S")
-                    else:
-                        created_at_str = created_at.strftime("%Y-%m-%d %H:%M:%S")
-                except:
-                    created_at_str = str(created_at)
-                
-                # Статус шаблона
-                status_emoji = "✅" if is_active else "❌"
-                status_text = "Активен" if is_active else "Неактивен"
-                
-                # Получаем настройки уведомлений для данного шаблона, если есть
-                notification_settings = self.setting_service.get_settings_by_template_id(template_id)
-                
-                # Формируем сообщение с полной информацией о шаблоне
-                template_text = f"📋 <b>Шаблон #{template_id}</b>\n"
-                template_text += f"📝 <b>Название:</b> {name}\n"
-                template_text += f"📂 <b>Категория:</b> {category}\n"
-                template_text += f"⏱ <b>Создан:</b> {created_at_str}\n"
-                template_text += f"📊 <b>Статус:</b> {status_emoji} {status_text}\n\n"
-                
-                # Добавляем информацию о настройках уведомлений, если есть
-                if notification_settings:
-                    template_text += f"⚙️ <b>Настройки уведомлений:</b>\n"
-                    for setting in notification_settings:
-                        # Название настройки
-                        setting_name = setting.name if hasattr(setting, 'name') and setting.name else 'Без названия'
-                        
-                        # Дни и время отправки
-                        days_before = setting.days_before if hasattr(setting, 'days_before') else 0
-                        time_to_send = setting.time_to_send if hasattr(setting, 'time_to_send') else '12:00'
-                        
-                        # Статус настройки
-                        setting_active = hasattr(setting, 'is_active') and setting.is_active
-                        setting_emoji = "✅" if setting_active else "❌"
-                        setting_status = "Активна" if setting_active else "Неактивна"
-                        
-                        template_text += f"• {setting_name}: За {days_before} дней в {time_to_send} - {setting_emoji} {setting_status}\n"
-                    template_text += "\n"
-                
-                # Добавляем текст шаблона
-                template_text += f"🔤 <b>Текст шаблона:</b>\n\n{text}\n"
+                # Используем метод _format_template_info для единообразного форматирования шаблонов
+                template_text = self._format_template_info(template)
                 
                 # Отправляем информацию о шаблоне
                 # Если это последний шаблон, добавляем кнопку "Назад"
