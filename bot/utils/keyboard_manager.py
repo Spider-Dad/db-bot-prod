@@ -148,10 +148,6 @@ class KeyboardManager:
             text=f"{EMOJI['edit']} Обновить шаблон", 
             callback_data="cmd_update_template"
         )
-        test_template_btn = types.InlineKeyboardButton(
-            text=f"{EMOJI['test']} Тест шаблона", 
-            callback_data="cmd_test_template"
-        )
         preview_template_btn = types.InlineKeyboardButton(
             text=f"{EMOJI['eye']} Предпросмотр шаблона", 
             callback_data="cmd_preview_template"
@@ -178,7 +174,6 @@ class KeyboardManager:
         keyboard.add(remove_template_btn)
         keyboard.add(templates_list_btn)
         keyboard.add(update_template_btn)
-        keyboard.add(test_template_btn)
         keyboard.add(preview_template_btn)
         keyboard.add(activate_template_btn)
         keyboard.add(deactivate_template_btn)
