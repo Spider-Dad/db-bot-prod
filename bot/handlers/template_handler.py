@@ -133,9 +133,19 @@ class TemplateHandler(BaseHandler):
             
         except Exception as e:
             logger.error(f"Ошибка при получении списка шаблонов: {str(e)}")
+            
+            # Создаем клавиатуру с кнопкой "Назад"
+            keyboard = types.InlineKeyboardMarkup()
+            back_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['back']} Назад", 
+                callback_data="menu_templates"
+            )
+            keyboard.add(back_btn)
+            
             self.send_message(
                 message.chat.id,
-                f"{EMOJI['error']} <b>Ошибка:</b> {str(e)}"
+                f"{EMOJI['error']} <b>Ошибка:</b> {str(e)}",
+                reply_markup=keyboard
             )
     
     @admin_required
@@ -295,9 +305,18 @@ class TemplateHandler(BaseHandler):
             try:
                 template_id = int(parts[1])
             except ValueError:
+                # Создаем клавиатуру с кнопкой "Назад"
+                keyboard = types.InlineKeyboardMarkup()
+                back_btn = types.InlineKeyboardButton(
+                    text=f"{EMOJI['back']} Назад", 
+                    callback_data="menu_templates"
+                )
+                keyboard.add(back_btn)
+                
                 self.send_message(
                     message.chat.id,
-                    f"{EMOJI['error']} <b>Ошибка:</b> ID шаблона должен быть числом."
+                    f"{EMOJI['error']} <b>Ошибка:</b> ID шаблона должен быть числом.",
+                    reply_markup=keyboard
                 )
                 return
             
@@ -307,9 +326,18 @@ class TemplateHandler(BaseHandler):
             template = self.template_service.get_template_by_id(template_id)
             
             if not template:
+                # Создаем клавиатуру с кнопкой "Назад"
+                keyboard = types.InlineKeyboardMarkup()
+                back_btn = types.InlineKeyboardButton(
+                    text=f"{EMOJI['back']} Назад", 
+                    callback_data="menu_templates"
+                )
+                keyboard.add(back_btn)
+                
                 self.send_message(
                     message.chat.id,
-                    f"{EMOJI['error']} <b>Ошибка:</b> Шаблон с ID {template_id} не найден."
+                    f"{EMOJI['error']} <b>Ошибка:</b> Шаблон с ID {template_id} не найден.",
+                    reply_markup=keyboard
                 )
                 return
             
@@ -549,9 +577,19 @@ class TemplateHandler(BaseHandler):
                 
         except Exception as e:
             logger.error(f"Ошибка при предпросмотре шаблона: {str(e)}")
+            
+            # Создаем клавиатуру с кнопкой "Назад"
+            keyboard = types.InlineKeyboardMarkup()
+            back_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['back']} Назад", 
+                callback_data="menu_templates"
+            )
+            keyboard.add(back_btn)
+            
             self.send_message(
                 message.chat.id,
-                f"{EMOJI['error']} <b>Ошибка:</b> {str(e)}"
+                f"{EMOJI['error']} <b>Ошибка:</b> {str(e)}",
+                reply_markup=keyboard
             )
     
     @admin_required
@@ -721,9 +759,18 @@ class TemplateHandler(BaseHandler):
             try:
                 template_id = int(parts[1])
             except ValueError:
+                # Создаем клавиатуру с кнопкой "Назад"
+                keyboard = types.InlineKeyboardMarkup()
+                back_btn = types.InlineKeyboardButton(
+                    text=f"{EMOJI['back']} Назад", 
+                    callback_data="menu_templates"
+                )
+                keyboard.add(back_btn)
+                
                 self.send_message(
                     message.chat.id,
-                    f"{EMOJI['error']} <b>Ошибка:</b> ID шаблона должен быть числом."
+                    f"{EMOJI['error']} <b>Ошибка:</b> ID шаблона должен быть числом.",
+                    reply_markup=keyboard
                 )
                 return
             
@@ -731,9 +778,18 @@ class TemplateHandler(BaseHandler):
             template = self.template_service.get_template_by_id(template_id)
             
             if not template:
+                # Создаем клавиатуру с кнопкой "Назад"
+                keyboard = types.InlineKeyboardMarkup()
+                back_btn = types.InlineKeyboardButton(
+                    text=f"{EMOJI['back']} Назад", 
+                    callback_data="menu_templates"
+                )
+                keyboard.add(back_btn)
+                
                 self.send_message(
                     message.chat.id,
-                    f"{EMOJI['error']} <b>Ошибка:</b> Шаблон с ID {template_id} не найден."
+                    f"{EMOJI['error']} <b>Ошибка:</b> Шаблон с ID {template_id} не найден.",
+                    reply_markup=keyboard
                 )
                 return
             
@@ -762,9 +818,19 @@ class TemplateHandler(BaseHandler):
                 
         except Exception as e:
             logger.error(f"Ошибка при активации шаблона: {str(e)}")
+            
+            # Создаем клавиатуру с кнопкой "Назад"
+            keyboard = types.InlineKeyboardMarkup()
+            back_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['back']} Назад", 
+                callback_data="menu_templates"
+            )
+            keyboard.add(back_btn)
+            
             self.send_message(
                 message.chat.id,
-                f"{EMOJI['error']} <b>Ошибка:</b> {str(e)}"
+                f"{EMOJI['error']} <b>Ошибка:</b> {str(e)}",
+                reply_markup=keyboard
             )
     
     @admin_required
@@ -853,9 +919,19 @@ class TemplateHandler(BaseHandler):
                 
         except Exception as e:
             logger.error(f"Ошибка при деактивации шаблона: {str(e)}")
+            
+            # Создаем клавиатуру с кнопкой "Назад"
+            keyboard = types.InlineKeyboardMarkup()
+            back_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['back']} Назад", 
+                callback_data="menu_templates"
+            )
+            keyboard.add(back_btn)
+            
             self.send_message(
                 message.chat.id,
-                f"{EMOJI['error']} <b>Ошибка:</b> {str(e)}"
+                f"{EMOJI['error']} <b>Ошибка:</b> {str(e)}",
+                reply_markup=keyboard
             )
     
     @admin_required
@@ -1774,7 +1850,17 @@ class TemplateHandler(BaseHandler):
             
         except Exception as e:
             logger.error(f"Ошибка в обработчике menu_templates: {str(e)}")
+            
+            # Создаем клавиатуру с кнопкой "Назад"
+            keyboard = types.InlineKeyboardMarkup()
+            back_btn = types.InlineKeyboardButton(
+                text=f"{EMOJI['back']} В главное меню", 
+                callback_data="menu_main"
+            )
+            keyboard.add(back_btn)
+            
             self.send_message(
                 chat_id=message.chat.id,
-                text=f"{EMOJI['error']} Произошла ошибка: {str(e)}"
+                text=f"{EMOJI['error']} Произошла ошибка: {str(e)}",
+                reply_markup=keyboard
             ) 
