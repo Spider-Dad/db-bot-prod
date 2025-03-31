@@ -76,7 +76,15 @@ class BackupService(BaseService):
             True, если восстановление прошло успешно, иначе False
         """
         try:
-            result = self.database_manager.restore_from_backup(backup_name)
+            # Получаем полный путь к файлу резервной копии
+            backup_path = self.get_backup_path(backup_name)
+            
+            if not backup_path:
+                logger.warning(f"Не удалось найти резервную копию: {backup_name}")
+                return False
+                
+            # Восстанавливаем из резервной копии
+            result = self.database_manager.restore_from_backup(backup_path)
             if result:
                 logger.info(f"База данных успешно восстановлена из копии: {backup_name}")
             else:
@@ -97,6 +105,14 @@ class BackupService(BaseService):
             True, если удаление прошло успешно, иначе False
         """
         try:
+            # Проверяем, существует ли резервная копия
+            backup_path = self.get_backup_path(backup_name)
+            
+            if not backup_path:
+                logger.warning(f"Не удалось найти резервную копию: {backup_name}")
+                return False
+                
+            # Удаляем резервную копию
             result = self.database_manager.delete_backup(backup_name)
             if result:
                 logger.info(f"Резервная копия успешно удалена: {backup_name}")
@@ -163,6 +179,22 @@ class BackupService(BaseService):
             True, если копия существует, иначе False
         """
         return self.database_manager.backup_exists(backup_name)
+    
+    def get_backup_path(self, backup_name: str) -> Optional[str]:
+        """
+        Получение полного пути к файлу резервной копии.
+        
+        Args:
+            backup_name: Имя файла резервной копии
+            
+        Returns:
+            Полный путь к файлу резервной копии или None, если файл не найден
+        """
+        try:
+            return self.database_manager.get_backup_path(backup_name)
+        except Exception as e:
+            logger.error(f"Ошибка при получении пути к резервной копии {backup_name}: {e}")
+            return None
     
     def get_backup_info(self, backup_name: str) -> Optional[dict]:
         """

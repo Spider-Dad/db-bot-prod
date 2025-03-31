@@ -181,6 +181,15 @@ class BackupHandler(BaseHandler):
             args: Аргументы команды
         """
         try:
+            # Отладка
+            logger.info(f"restore_backup: исходный текст сообщения: '{message.text}'")
+            logger.info(f"restore_backup: полученные аргументы: {args}")
+            
+            # Извлекаем аргументы из сообщения, если они не были переданы
+            if args is None:
+                args = self.extract_command_args(message.text)
+                logger.info(f"restore_backup: аргументы после извлечения: {args}")
+            
             # Проверяем наличие аргументов
             if not args or len(args) < 1:
                 # Создаем клавиатуру с кнопкой "Назад"
@@ -346,6 +355,15 @@ class BackupHandler(BaseHandler):
             args: Аргументы команды
         """
         try:
+            # Отладка
+            logger.info(f"delete_backup: исходный текст сообщения: '{message.text}'")
+            logger.info(f"delete_backup: полученные аргументы: {args}")
+            
+            # Извлекаем аргументы из сообщения, если они не были переданы
+            if args is None:
+                args = self.extract_command_args(message.text)
+                logger.info(f"delete_backup: аргументы после извлечения: {args}")
+            
             # Проверяем наличие аргументов
             if not args or len(args) < 1:
                 # Создаем клавиатуру с кнопкой "Назад"

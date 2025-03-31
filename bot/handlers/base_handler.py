@@ -188,13 +188,20 @@ class BaseHandler:
             Список аргументов команды
         """
         parts = text.split(maxsplit=1)
+        # Отладочная информация
+        logger.info(f"extract_command_args: исходный текст: '{text}'")
+        logger.info(f"extract_command_args: части после разделения: {parts}")
+        
         if len(parts) < 2:
+            logger.info("extract_command_args: аргументы не найдены, возвращаю пустой список")
             return []
             
         # Извлекаем аргументы из сообщения (все после команды)
         args_text = parts[1].strip()
+        logger.info(f"extract_command_args: текст аргументов: '{args_text}'")
         
         if expected_args_count and expected_args_count == 1:
+            logger.info(f"extract_command_args: ожидается 1 аргумент, возвращаю весь текст как один аргумент: '{args_text}'")
             return [args_text]
             
         # Разбиваем на аргументы, учитывая кавычки
@@ -228,6 +235,9 @@ class BaseHandler:
         if current_arg:
             args.append(current_arg)
             
+        # Отладочная информация
+        logger.info(f"extract_command_args: итоговые аргументы: {args}")
+        
         return args
     
     def extract_username(self, text: str) -> Optional[str]:
