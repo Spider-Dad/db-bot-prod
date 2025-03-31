@@ -188,9 +188,10 @@ class TemplateHandler(BaseHandler):
             message: Сообщение от пользователя
         """
         try:
-            args = self.extract_command_args(message.text)
+            # Разделяем текст на части: команда, название, категория и текст
+            parts = message.text.split(' ', 3)
             
-            if len(args) < 2:
+            if len(parts) < 4:
                 # Если команда вызвана без аргументов, показываем инструкцию и кнопку назад
                 # (как в callback-обработчике cmd_add_template_callback)
                 
@@ -201,6 +202,15 @@ class TemplateHandler(BaseHandler):
                     f"<code>/set_template [название] [категория] [текст шаблона]</code>\n\n"
                     f"Например:\n"
                     f"<code>/set_template День_рождения birthday Коллега, привет!🍾 \n📅 Уже скоро {{name}} {{date}} отмечает День Рождения! 🎂 \n Если хочешь принять участие в поздравительном конверте, прошу перевести взнос по номеру телефона <b>{{phone_pay}}</b> на Альфу или Тинькофф до конца дня {{date_before}}. Получатель: <b>{{name_pay}}</b>. \n ⚠️ Пожалуйста, не переводи деньги в другие банки, даже если приложение будет предлагать варианты. \n В комментарии перевода укажи: ДР {{first_name}}</code>\n\n"
+                    f"Доступные переменные:\n"
+                    f"• {{name}} - Полное имя пользователя\n"
+                    f"• {{first_name}} - Имя пользователя\n"
+                    f"• {{last_name}} - Фамилия пользователя\n"
+                    f"• {{date}} - Дата события\n"
+                    f"• {{date_before}} - Дата за день до события\n"
+                    f"• {{days_until}} - Количество дней до события\n"
+                    f"• {{phone_pay}} - Номер телефона для перевода\n"
+                    f"• {{name_pay}} - ФИО получателя платежа"
                 )
                 
                 # Создаем клавиатуру с кнопкой "Назад"
@@ -215,9 +225,9 @@ class TemplateHandler(BaseHandler):
                 return
             
             # Извлекаем аргументы
-            name = args[0]
-            category = args[1] if len(args) > 2 else "general"
-            text = args[2] if len(args) > 2 else args[1]
+            name = parts[1]
+            category = parts[2]
+            text = parts[3]
             
             # Проверяем валидность HTML-тегов
             if not self._validate_html_tags(text):
@@ -290,11 +300,11 @@ class TemplateHandler(BaseHandler):
             message: Сообщение от пользователя
         """
         try:
-            # Извлекаем аргументы из текста сообщения
-            args = self.extract_command_args(message.text)
+            # Разделяем текст на части: команда, id и остальное содержимое
+            parts = message.text.split(' ', 2)
             
             # Проверяем наличие аргументов
-            if len(args) < 2:
+            if len(parts) < 3:
                 # Создаем клавиатуру с кнопками "Список шаблонов" и "Назад"
                 keyboard = types.InlineKeyboardMarkup()
                 list_btn = types.InlineKeyboardButton(
@@ -323,7 +333,7 @@ class TemplateHandler(BaseHandler):
             
             # Извлекаем ID шаблона и новый текст
             try:
-                template_id = int(args[0])
+                template_id = int(parts[1])
             except ValueError:
                 self.send_message(
                     message.chat.id,
@@ -331,7 +341,7 @@ class TemplateHandler(BaseHandler):
                 )
                 return
             
-            new_text = args[1]
+            new_text = parts[2]
             
             # Получаем шаблон из базы
             template = self.template_service.get_template_by_id(template_id)
@@ -390,17 +400,19 @@ class TemplateHandler(BaseHandler):
     
     @admin_required
     @log_errors
-    def delete_template(self, message: types.Message, args: List[str] = None) -> None:
+    def delete_template(self, message: types.Message) -> None:
         """
         Обработчик команды /delete_template.
         
         Args:
             message: Сообщение от пользователя
-            args: Аргументы команды
         """
         try:
+            # Разделяем текст на части: команда и id
+            parts = message.text.split(' ', 1)
+            
             # Проверяем наличие аргументов
-            if not args or len(args) < 1:
+            if len(parts) < 2:
                 # Создаем клавиатуру с кнопками "Список шаблонов" и "Назад"
                 keyboard = types.InlineKeyboardMarkup()
                 list_btn = types.InlineKeyboardButton(
@@ -429,7 +441,7 @@ class TemplateHandler(BaseHandler):
             
             # Извлекаем ID шаблона
             try:
-                template_id = int(args[0])
+                template_id = int(parts[1])
             except ValueError:
                 self.send_message(
                     message.chat.id,
@@ -468,20 +480,22 @@ class TemplateHandler(BaseHandler):
                 message.chat.id,
                 f"{EMOJI['error']} <b>Ошибка:</b> {str(e)}"
             )
-            
+    
     @admin_required
     @log_errors
-    def preview_template(self, message: types.Message, args: List[str] = None) -> None:
+    def preview_template(self, message: types.Message) -> None:
         """
         Обработчик команды /preview_template.
         
         Args:
             message: Сообщение от пользователя
-            args: Аргументы команды
         """
         try:
+            # Разделяем текст на части: команда и id
+            parts = message.text.split(' ', 1)
+            
             # Проверяем наличие аргументов
-            if not args or len(args) < 1:
+            if len(parts) < 2:
                 # Создаем клавиатуру с кнопками "Список шаблонов" и "Назад"
                 keyboard = types.InlineKeyboardMarkup()
                 list_btn = types.InlineKeyboardButton(
@@ -510,7 +524,7 @@ class TemplateHandler(BaseHandler):
             
             # Извлекаем ID шаблона
             try:
-                template_id = int(args[0])
+                template_id = int(parts[1])
             except ValueError:
                 self.send_message(
                     message.chat.id,
@@ -576,17 +590,19 @@ class TemplateHandler(BaseHandler):
     
     @admin_required
     @log_errors
-    def test_template(self, message: types.Message, args: List[str] = None) -> None:
+    def test_template(self, message: types.Message) -> None:
         """
         Обработчик команды /test_template.
         
         Args:
             message: Сообщение от пользователя
-            args: Аргументы команды
         """
         try:
+            # Разделяем текст на части: команда, id_шаблона и id_пользователя
+            parts = message.text.split(' ', 2)
+            
             # Проверяем наличие аргументов
-            if not args or len(args) < 2:
+            if len(parts) < 3:
                 # Создаем клавиатуру с кнопками "Список шаблонов" и "Назад"
                 keyboard = types.InlineKeyboardMarkup()
                 list_btn = types.InlineKeyboardButton(
@@ -615,7 +631,7 @@ class TemplateHandler(BaseHandler):
                 
             # Извлекаем ID шаблона и ID пользователя для теста
             try:
-                template_id = int(args[0])
+                template_id = int(parts[1])
             except ValueError:
                 self.send_message(
                     message.chat.id,
@@ -624,7 +640,7 @@ class TemplateHandler(BaseHandler):
                 return
                 
             try:
-                user_id = int(args[1])
+                user_id = int(parts[2])
             except ValueError:
                 self.send_message(
                     message.chat.id,
@@ -696,17 +712,19 @@ class TemplateHandler(BaseHandler):
     
     @admin_required
     @log_errors
-    def activate_template(self, message: types.Message, args: List[str] = None) -> None:
+    def activate_template(self, message: types.Message) -> None:
         """
         Обработчик команды /activate_template.
         
         Args:
             message: Сообщение от пользователя
-            args: Аргументы команды
         """
         try:
+            # Разделяем текст на части: команда и id
+            parts = message.text.split(' ', 1)
+            
             # Проверяем наличие аргументов
-            if not args or len(args) < 1:
+            if len(parts) < 2:
                 # Создаем клавиатуру с кнопками "Список шаблонов" и "Назад"
                 keyboard = types.InlineKeyboardMarkup()
                 list_btn = types.InlineKeyboardButton(
@@ -735,7 +753,7 @@ class TemplateHandler(BaseHandler):
             
             # Извлекаем ID шаблона
             try:
-                template_id = int(args[0])
+                template_id = int(parts[1])
             except ValueError:
                 self.send_message(
                     message.chat.id,
@@ -785,17 +803,19 @@ class TemplateHandler(BaseHandler):
     
     @admin_required
     @log_errors
-    def deactivate_template(self, message: types.Message, args: List[str] = None) -> None:
+    def deactivate_template(self, message: types.Message) -> None:
         """
         Обработчик команды /deactivate_template.
         
         Args:
             message: Сообщение от пользователя
-            args: Аргументы команды
         """
         try:
+            # Разделяем текст на части: команда и id
+            parts = message.text.split(' ', 1)
+            
             # Проверяем наличие аргументов
-            if not args or len(args) < 1:
+            if len(parts) < 2:
                 # Создаем клавиатуру с кнопками "Список шаблонов" и "Назад"
                 keyboard = types.InlineKeyboardMarkup()
                 list_btn = types.InlineKeyboardButton(
@@ -824,7 +844,7 @@ class TemplateHandler(BaseHandler):
             
             # Извлекаем ID шаблона
             try:
-                template_id = int(args[0])
+                template_id = int(parts[1])
             except ValueError:
                 self.send_message(
                     message.chat.id,
@@ -915,8 +935,8 @@ class TemplateHandler(BaseHandler):
         if not args_text:
             return []
         
-        # Для команд создания и обновления шаблонов, разделяем аргументы особым образом
-        if command_text.startswith(('/set_template', '/update_template')):
+        # Для команды set_template разделяем аргументы особым образом
+        if command_text.startswith('/set_template'):
             args = []
             # Максимум 3 аргумента: имя, категория и текст
             parts = args_text.split(' ', 2)
