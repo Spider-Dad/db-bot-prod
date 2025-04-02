@@ -24,7 +24,8 @@ from bot.handlers import (
     NotificationSettingHandler,
     NotificationLogHandler,
     BackupHandler,
-    GameHandler
+    GameHandler,
+    NotificationHandler
 )
 from config import BOT_TOKEN, DATA_DIR
 
@@ -92,21 +93,6 @@ def main():
         logger.info("Создание бота...")
         bot = telebot.TeleBot(BOT_TOKEN)
         
-        # Создание и настройка обработчиков
-        logger.info("Конфигурация обработчиков...")
-        handlers = [
-            UserHandler(bot, user_service),
-            TemplateHandler(bot, template_service, user_service, setting_service),
-            NotificationSettingHandler(bot, setting_service, template_service),
-            NotificationLogHandler(bot, log_service),
-            BackupHandler(bot, backup_service, user_service),
-            GameHandler(bot, user_service)
-        ]
-        
-        # Регистрация обработчиков
-        for handler in handlers:
-            handler.register_handlers()
-        
         # Настройка менеджера уведомлений
         logger.info("Настройка менеджера уведомлений...")
         notification_service = NotificationService(
@@ -116,6 +102,22 @@ def main():
             setting_service, 
             log_service
         )
+        
+        # Создание и настройка обработчиков
+        logger.info("Конфигурация обработчиков...")
+        handlers = [
+            UserHandler(bot, user_service),
+            TemplateHandler(bot, template_service, user_service, setting_service),
+            NotificationSettingHandler(bot, setting_service, template_service),
+            NotificationLogHandler(bot, log_service),
+            BackupHandler(bot, backup_service, user_service),
+            GameHandler(bot, user_service),
+            NotificationHandler(bot, notification_service, user_service, template_service)
+        ]
+        
+        # Регистрация обработчиков
+        for handler in handlers:
+            handler.register_handlers()
         
         # Запуск менеджера уведомлений
         logger.info("Запуск менеджера уведомлений...")
