@@ -197,8 +197,12 @@ class KeyboardManager:
             text=f"{EMOJI['setting']} Настройки уведомлений", 
             callback_data="menu_settings"
         )
-        send_btn = types.InlineKeyboardButton(
-            text=f"{EMOJI['send']} Отправить произвольное уведомление", 
+        selective_btn = types.InlineKeyboardButton(
+            text=f"{EMOJI['users']} Выборочная рассылка", 
+            callback_data="cmd_selective_notification"
+        )
+        all_btn = types.InlineKeyboardButton(
+            text=f"{EMOJI['bell']} Рассылка всем", 
             callback_data="cmd_send_notification"
         )
         back_btn = types.InlineKeyboardButton(
@@ -208,7 +212,8 @@ class KeyboardManager:
         
         # Добавляем кнопки
         keyboard.add(settings_btn)
-        keyboard.add(send_btn)
+        keyboard.add(selective_btn)
+        keyboard.add(all_btn)
         keyboard.add(back_btn)
         
         return keyboard

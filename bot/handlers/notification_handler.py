@@ -79,6 +79,11 @@ class NotificationHandler(BaseHandler):
         self.bot.message_handler(commands=['send_notification'])(self.cmd_send_notification)
         # Обработчик команды выборочной отправки
         self.bot.message_handler(commands=['selective_notification'])(self.cmd_selective_notification)
+        
+        # Обработчики callback-запросов для кнопок в меню
+        self.bot.callback_query_handler(func=lambda call: call.data == 'cmd_send_notification')(self.cmd_send_notification_callback)
+        self.bot.callback_query_handler(func=lambda call: call.data == 'cmd_selective_notification')(self.cmd_selective_notification_callback)
+        
         # Обработчик callback-запросов для выбора пользователей
         self.bot.callback_query_handler(func=lambda call: call.data.startswith('select_user:'))(self.process_user_selection)
         self.bot.callback_query_handler(func=lambda call: call.data == 'confirm_selection')(self.confirm_user_selection)
@@ -106,6 +111,30 @@ class NotificationHandler(BaseHandler):
         )
         self.set_next_handler(message.chat.id, self.process_broadcast_message)
     
+    def cmd_send_notification_callback(self, call: types.CallbackQuery) -> None:
+        """
+        Обработчик callback-запроса для кнопки "Рассылка всем".
+        """
+        # Отвечаем на callback-запрос
+        self.answer_callback_query(call.id)
+        
+        keyboard = types.InlineKeyboardMarkup(row_width=1)
+        keyboard.add(
+            types.InlineKeyboardButton(
+                text=f"{EMOJI['back']} Отмена",
+                callback_data="cancel_selection"
+            )
+        )
+        
+        # Отправляем новое сообщение, а не редактируем старое для чистоты интерфейса
+        self.send_message(
+            call.message.chat.id,
+            f"{EMOJI['bell']} <b>Отправка уведомления всем пользователям</b>\n\n"
+            "Пожалуйста, введите текст сообщения для рассылки:",
+            reply_markup=keyboard
+        )
+        self.set_next_handler(call.message.chat.id, self.process_broadcast_message)
+    
     def process_broadcast_message(self, message: types.Message) -> None:
         """
         Обработка текста сообщения для массовой рассылки.
@@ -122,6 +151,9 @@ class NotificationHandler(BaseHandler):
             f"✅ Успешно отправлено: {result['success']}\n"
             f"❌ Не доставлено: {result['failed']}"
         )
+        
+        # Возвращаем меню рассылок
+        self.show_notifications_menu(message.chat.id)
     
     @admin_required
     @log_errors
@@ -129,13 +161,32 @@ class NotificationHandler(BaseHandler):
         """
         Обработчик команды /selective_notification для выборочной отправки.
         """
+        self._show_selective_notification_ui(message.chat.id)
+    
+    def cmd_selective_notification_callback(self, call: types.CallbackQuery) -> None:
+        """
+        Обработчик callback-запроса для кнопки "Выборочная рассылка".
+        """
+        # Отвечаем на callback-запрос
+        self.answer_callback_query(call.id)
+        
+        # Показываем интерфейс выбора пользователей
+        self._show_selective_notification_ui(call.message.chat.id)
+    
+    def _show_selective_notification_ui(self, chat_id: int) -> None:
+        """
+        Показывает интерфейс выбора пользователей для выборочной рассылки.
+        
+        Args:
+            chat_id: ID чата
+        """
         # Получаем список активных пользователей
         users = self.user_service.get_all_users()
         active_users = [user for user in users if user.is_notifications_enabled]
         
         if not active_users:
             self.send_message(
-                message.chat.id,
+                chat_id,
                 f"{EMOJI['warning']} <b>Нет активных пользователей</b>\n"
                 "Невозможно отправить уведомление, так как нет пользователей с включенными уведомлениями."
             )
@@ -145,7 +196,6 @@ class NotificationHandler(BaseHandler):
         keyboard = types.InlineKeyboardMarkup(row_width=1)
         
         # Инициализируем словарь данных пользователей для текущего чата
-        chat_id = message.chat.id
         if chat_id not in self.user_data:
             self.user_data[chat_id] = {}
             
@@ -181,10 +231,10 @@ class NotificationHandler(BaseHandler):
         )
         
         # Инициализируем множество выбранных пользователей
-        self.selected_users[message.chat.id] = set()
+        self.selected_users[chat_id] = set()
         
         self.send_message(
-            message.chat.id,
+            chat_id,
             f"{EMOJI['bell']} <b>Выборочная рассылка</b>\n\n"
             "Выберите получателей сообщения:",
             reply_markup=keyboard
@@ -309,6 +359,9 @@ class NotificationHandler(BaseHandler):
             f"✅ Успешно отправлено: {results['success']}\n"
             f"❌ Не доставлено: {results['failed']}"
         )
+        
+        # Возвращаем меню рассылок
+        self.show_notifications_menu(message.chat.id)
     
     def cancel_user_selection(self, call: types.CallbackQuery) -> None:
         """
@@ -324,4 +377,23 @@ class NotificationHandler(BaseHandler):
         self.send_message(
             chat_id,
             f"{EMOJI['info']} <b>Операция отменена</b>"
+        )
+        
+        # Возвращаем меню рассылок
+        self.show_notifications_menu(chat_id)
+    
+    def show_notifications_menu(self, chat_id: int) -> None:
+        """
+        Показывает меню управления рассылками.
+        
+        Args:
+            chat_id: ID чата
+        """
+        keyboard = self.keyboard_manager.create_notifications_menu()
+        
+        self.send_message(
+            chat_id,
+            f"{EMOJI['bell']} <b>Управление рассылками</b>\n\n"
+            f"Выберите команду:",
+            reply_markup=keyboard
         ) 
