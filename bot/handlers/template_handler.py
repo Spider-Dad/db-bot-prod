@@ -268,113 +268,80 @@ class TemplateHandler(BaseHandler):
             message: Сообщение от пользователя
         """
         try:
-            # Разделяем текст на части: команда, id и остальное содержимое
-            parts = message.text.split(' ', 2)
+            # Разбираем аргументы команды
+            args = message.text.split()[1:] if len(message.text.split()) > 1 else []
             
-            # Проверяем наличие аргументов
-            if len(parts) < 3:
-                # Создаем клавиатуру с кнопками "Список шаблонов" и "Назад"
-                keyboard = types.InlineKeyboardMarkup()
-                list_btn = types.InlineKeyboardButton(
-                    text=f"{EMOJI['list']} Список шаблонов", 
-                    callback_data="cmd_templates_list"
-                )
-                back_btn = types.InlineKeyboardButton(
-                    text=f"{EMOJI['back']} Назад", 
-                    callback_data="menu_templates"
-                )
-                keyboard.add(list_btn)
-                keyboard.add(back_btn)
-                
-                # Отправляем информационное сообщение
-                self.send_message(
-                    message.chat.id, 
-                    f"{EMOJI['edit']} <b>Изменение шаблона</b>\n\n"
+            if len(args) < 4:
+                # Если команда вызвана без аргументов, показываем инструкцию
+                text = (
+                    f"{EMOJI['info']} <b>Изменение шаблона</b>\n\n"
                     f"Для изменения шаблона отправьте команду в формате:\n"
-                    f"<code>/update_template [id] [новый_текст]</code>\n\n"
+                    f"<code>/update_template [id_шаблона] [название] [категория] [текст_шаблона]</code>\n\n"
                     f"Например:\n"
-                    f"<code>/update_template 1 Новый текст шаблона</code>\n\n"
-                    f"Чтобы узнать ID шаблона, используйте команду /get_templates или нажмите кнопку «Список шаблонов».",
-                    reply_markup=keyboard
+                    f"<code>/update_template 1 День_рождения birthday Новый текст шаблона</code>"
                 )
+                
+                # Создаем клавиатуру с кнопкой "Назад"
+                keyboard = types.InlineKeyboardMarkup()
+                back_btn = types.InlineKeyboardButton(
+                    text=f"{EMOJI['back']} Назад", 
+                    callback_data="menu_templates"
+                )
+                keyboard.add(back_btn)
+                
+                self.send_message(message.chat.id, text, reply_markup=keyboard)
                 return
             
-            # Извлекаем ID шаблона и новый текст
+            # Извлекаем аргументы
             try:
-                template_id = int(parts[1])
+                template_id = int(args[0])
             except ValueError:
-                # Создаем клавиатуру с кнопкой "Назад"
-                keyboard = types.InlineKeyboardMarkup()
-                back_btn = types.InlineKeyboardButton(
-                    text=f"{EMOJI['back']} Назад", 
-                    callback_data="menu_templates"
-                )
-                keyboard.add(back_btn)
-                
                 self.send_message(
                     message.chat.id,
-                    f"{EMOJI['error']} <b>Ошибка:</b> ID шаблона должен быть числом.",
-                    reply_markup=keyboard
+                    f"{EMOJI['error']} <b>Ошибка:</b> ID шаблона должен быть числом."
                 )
                 return
             
-            new_text = parts[2]
-            
-            # Получаем шаблон из базы
-            template = self.template_service.get_template_by_id(template_id)
-            
-            if not template:
-                # Создаем клавиатуру с кнопкой "Назад"
-                keyboard = types.InlineKeyboardMarkup()
-                back_btn = types.InlineKeyboardButton(
-                    text=f"{EMOJI['back']} Назад", 
-                    callback_data="menu_templates"
-                )
-                keyboard.add(back_btn)
-                
-                self.send_message(
-                    message.chat.id,
-                    f"{EMOJI['error']} <b>Ошибка:</b> Шаблон с ID {template_id} не найден.",
-                    reply_markup=keyboard
-                )
-                return
+            name = args[1]
+            category = args[2]
+            text = ' '.join(args[3:])
             
             # Проверяем валидность HTML-тегов
-            if not self._validate_html_tags(new_text):
+            if not self._validate_html_tags(text):
                 self.send_message(
                     message.chat.id,
-                    f"{EMOJI['error']} <b>Ошибка:</b> Шаблон содержит недопустимые HTML-теги.\n\n"
-                    f"Разрешены только теги: {', '.join(ALLOWED_HTML_TAGS)}"
+                    f"{EMOJI['error']} <b>Ошибка:</b> В тексте шаблона содержатся недопустимые HTML-теги."
                 )
                 return
             
             # Проверяем валидность переменных шаблона
-            if not self._validate_template_variables(new_text):
-                # Получаем список допустимых переменных без фигурных скобок для отображения
-                allowed_vars = [var.strip('{}') for var in TEMPLATE_VARIABLES]
-                valid_vars = ", ".join(["{" + v + "}" for v in allowed_vars])
-                
+            if not self._validate_template_variables(text):
                 self.send_message(
                     message.chat.id,
-                    f"{EMOJI['error']} <b>Ошибка:</b> Шаблон содержит недопустимые переменные.\n\n"
-                    f"Разрешены только переменные: {valid_vars}"
+                    f"{EMOJI['error']} <b>Ошибка:</b> В тексте шаблона содержатся недопустимые переменные."
                 )
                 return
             
             # Обновляем шаблон
-            template.template = new_text
-            result = self.template_service.update_template(template)
-            
-            if result:
+            if self.template_service.update_template(template_id, name, category, text):
+                # Создаем клавиатуру с кнопкой "Назад"
+                keyboard = types.InlineKeyboardMarkup()
+                back_btn = types.InlineKeyboardButton(
+                    text=f"{EMOJI['back']} Назад", 
+                    callback_data="menu_templates"
+                )
+                keyboard.add(back_btn)
+                
                 self.send_message(
                     message.chat.id,
-                    f"{EMOJI['success']} Шаблон с ID {template_id} успешно обновлен."
+                    f"{EMOJI['success']} Шаблон успешно обновлен.",
+                    reply_markup=keyboard
                 )
-                logger.info(f"Обновлен шаблон с ID {template_id} администратором {message.from_user.id}")
+                logger.info(f"Шаблон {template_id} обновлен администратором {message.from_user.id}")
             else:
                 self.send_message(
                     message.chat.id,
-                    f"{EMOJI['error']} <b>Ошибка:</b> Не удалось обновить шаблон."
+                    f"{EMOJI['error']} <b>Ошибка:</b> Шаблон не найден."
                 )
                 
         except Exception as e:
@@ -394,40 +361,33 @@ class TemplateHandler(BaseHandler):
             message: Сообщение от пользователя
         """
         try:
-            # Разделяем текст на части: команда и id
-            parts = message.text.split(' ', 1)
+            # Разбираем аргументы команды
+            args = message.text.split()[1:] if len(message.text.split()) > 1 else []
             
-            # Проверяем наличие аргументов
-            if len(parts) < 2:
-                # Создаем клавиатуру с кнопками "Список шаблонов" и "Назад"
-                keyboard = types.InlineKeyboardMarkup()
-                list_btn = types.InlineKeyboardButton(
-                    text=f"{EMOJI['list']} Список шаблонов", 
-                    callback_data="cmd_templates_list"
+            if len(args) < 1:
+                # Если команда вызвана без аргументов, показываем инструкцию
+                text = (
+                    f"{EMOJI['info']} <b>Удаление шаблона</b>\n\n"
+                    f"Для удаления шаблона отправьте команду в формате:\n"
+                    f"<code>/delete_template [id_шаблона]</code>\n\n"
+                    f"Например:\n"
+                    f"<code>/delete_template 1</code>"
                 )
+                
+                # Создаем клавиатуру с кнопкой "Назад"
+                keyboard = types.InlineKeyboardMarkup()
                 back_btn = types.InlineKeyboardButton(
                     text=f"{EMOJI['back']} Назад", 
                     callback_data="menu_templates"
                 )
-                keyboard.add(list_btn)
                 keyboard.add(back_btn)
                 
-                # Отправляем информационное сообщение
-                self.send_message(
-                    message.chat.id, 
-                    f"{EMOJI['minus']} <b>Удаление шаблона</b>\n\n"
-                    f"Для удаления шаблона отправьте команду в формате:\n"
-                    f"<code>/delete_template [id]</code>\n\n"
-                    f"Например:\n"
-                    f"<code>/delete_template 1</code>\n\n"
-                    f"Чтобы узнать ID шаблона, используйте команду /get_templates или нажмите кнопку «Список шаблонов».",
-                    reply_markup=keyboard
-                )
+                self.send_message(message.chat.id, text, reply_markup=keyboard)
                 return
             
             # Извлекаем ID шаблона
             try:
-                template_id = int(parts[1])
+                template_id = int(args[0])
             except ValueError:
                 self.send_message(
                     message.chat.id,
@@ -435,29 +395,26 @@ class TemplateHandler(BaseHandler):
                 )
                 return
             
-            # Получаем шаблон из базы для проверки
-            template = self.template_service.get_template_by_id(template_id)
-            
-            if not template:
-                self.send_message(
-                    message.chat.id,
-                    f"{EMOJI['error']} <b>Ошибка:</b> Шаблон с ID {template_id} не найден."
-                )
-                return
-            
             # Удаляем шаблон
-            result = self.template_service.delete_template(template_id)
-            
-            if result:
+            if self.template_service.delete_template(template_id):
+                # Создаем клавиатуру с кнопкой "Назад"
+                keyboard = types.InlineKeyboardMarkup()
+                back_btn = types.InlineKeyboardButton(
+                    text=f"{EMOJI['back']} Назад", 
+                    callback_data="menu_templates"
+                )
+                keyboard.add(back_btn)
+                
                 self.send_message(
                     message.chat.id,
-                    f"{EMOJI['success']} Шаблон с ID {template_id} успешно удален."
+                    f"{EMOJI['success']} Шаблон успешно удален.",
+                    reply_markup=keyboard
                 )
-                logger.info(f"Удален шаблон с ID {template_id} администратором {message.from_user.id}")
+                logger.info(f"Шаблон {template_id} удален администратором {message.from_user.id}")
             else:
                 self.send_message(
                     message.chat.id,
-                    f"{EMOJI['error']} <b>Ошибка:</b> Не удалось удалить шаблон."
+                    f"{EMOJI['error']} <b>Ошибка:</b> Шаблон не найден."
                 )
                 
         except Exception as e:
@@ -600,113 +557,67 @@ class TemplateHandler(BaseHandler):
             message: Сообщение от пользователя
         """
         try:
-            # Разделяем текст на части: команда и id
-            parts = message.text.split(' ', 1)
+            # Разбираем аргументы команды
+            args = message.text.split()[1:] if len(message.text.split()) > 1 else []
             
-            # Проверяем наличие аргументов
-            if len(parts) < 2:
-                # Создаем клавиатуру с кнопками "Список шаблонов" и "Назад"
-                keyboard = types.InlineKeyboardMarkup()
-                list_btn = types.InlineKeyboardButton(
-                    text=f"{EMOJI['list']} Список шаблонов", 
-                    callback_data="cmd_templates_list"
+            if len(args) < 1:
+                # Если команда вызвана без аргументов, показываем инструкцию
+                text = (
+                    f"{EMOJI['info']} <b>Активация шаблона</b>\n\n"
+                    f"Для активации шаблона отправьте команду в формате:\n"
+                    f"<code>/activate_template [id_шаблона]</code>\n\n"
+                    f"Например:\n"
+                    f"<code>/activate_template 1</code>"
                 )
+                
+                # Создаем клавиатуру с кнопкой "Назад"
+                keyboard = types.InlineKeyboardMarkup()
                 back_btn = types.InlineKeyboardButton(
                     text=f"{EMOJI['back']} Назад", 
                     callback_data="menu_templates"
                 )
-                keyboard.add(list_btn)
                 keyboard.add(back_btn)
                 
-                # Отправляем информационное сообщение
-                self.send_message(
-                    message.chat.id, 
-                    f"{EMOJI['check']} <b>Активация шаблона</b>\n\n"
-                    f"Для активации шаблона отправьте команду в формате:\n"
-                    f"<code>/activate_template [id]</code>\n\n"
-                    f"Например:\n"
-                    f"<code>/activate_template 1</code>\n\n"
-                    f"Чтобы узнать ID шаблона, используйте команду /get_templates или нажмите кнопку «Список шаблонов».",
-                    reply_markup=keyboard
-                )
+                self.send_message(message.chat.id, text, reply_markup=keyboard)
                 return
             
             # Извлекаем ID шаблона
             try:
-                template_id = int(parts[1])
+                template_id = int(args[0])
             except ValueError:
-                # Создаем клавиатуру с кнопкой "Назад"
-                keyboard = types.InlineKeyboardMarkup()
-                back_btn = types.InlineKeyboardButton(
-                    text=f"{EMOJI['back']} Назад", 
-                    callback_data="menu_templates"
-                )
-                keyboard.add(back_btn)
-                
                 self.send_message(
                     message.chat.id,
-                    f"{EMOJI['error']} <b>Ошибка:</b> ID шаблона должен быть числом.",
-                    reply_markup=keyboard
-                )
-                return
-            
-            # Получаем шаблон из базы для проверки
-            template = self.template_service.get_template_by_id(template_id)
-            
-            if not template:
-                # Создаем клавиатуру с кнопкой "Назад"
-                keyboard = types.InlineKeyboardMarkup()
-                back_btn = types.InlineKeyboardButton(
-                    text=f"{EMOJI['back']} Назад", 
-                    callback_data="menu_templates"
-                )
-                keyboard.add(back_btn)
-                
-                self.send_message(
-                    message.chat.id,
-                    f"{EMOJI['error']} <b>Ошибка:</b> Шаблон с ID {template_id} не найден.",
-                    reply_markup=keyboard
-                )
-                return
-            
-            # Если шаблон уже активен, сообщаем об этом
-            if template.is_active:
-                self.send_message(
-                    message.chat.id,
-                    f"{EMOJI['info']} Шаблон с ID {template_id} уже активен."
+                    f"{EMOJI['error']} <b>Ошибка:</b> ID шаблона должен быть числом."
                 )
                 return
             
             # Активируем шаблон
-            result = self.template_service.toggle_template_active(template_id, True)
-            
-            if result:
+            if self.template_service.activate_template(template_id):
+                # Создаем клавиатуру с кнопкой "Назад"
+                keyboard = types.InlineKeyboardMarkup()
+                back_btn = types.InlineKeyboardButton(
+                    text=f"{EMOJI['back']} Назад", 
+                    callback_data="menu_templates"
+                )
+                keyboard.add(back_btn)
+                
                 self.send_message(
                     message.chat.id,
-                    f"{EMOJI['success']} Шаблон с ID {template_id} успешно активирован."
+                    f"{EMOJI['success']} Шаблон успешно активирован.",
+                    reply_markup=keyboard
                 )
-                logger.info(f"Активирован шаблон с ID {template_id} администратором {message.from_user.id}")
+                logger.info(f"Шаблон {template_id} активирован администратором {message.from_user.id}")
             else:
                 self.send_message(
                     message.chat.id,
-                    f"{EMOJI['error']} <b>Ошибка:</b> Не удалось активировать шаблон."
+                    f"{EMOJI['error']} <b>Ошибка:</b> Шаблон не найден или уже активирован."
                 )
                 
         except Exception as e:
             logger.error(f"Ошибка при активации шаблона: {str(e)}")
-            
-            # Создаем клавиатуру с кнопкой "Назад"
-            keyboard = types.InlineKeyboardMarkup()
-            back_btn = types.InlineKeyboardButton(
-                text=f"{EMOJI['back']} Назад", 
-                callback_data="menu_templates"
-            )
-            keyboard.add(back_btn)
-            
             self.send_message(
                 message.chat.id,
-                f"{EMOJI['error']} <b>Ошибка:</b> {str(e)}",
-                reply_markup=keyboard
+                f"{EMOJI['error']} <b>Ошибка:</b> {str(e)}"
             )
     
     @admin_required
@@ -719,40 +630,33 @@ class TemplateHandler(BaseHandler):
             message: Сообщение от пользователя
         """
         try:
-            # Разделяем текст на части: команда и id
-            parts = message.text.split(' ', 1)
+            # Разбираем аргументы команды
+            args = message.text.split()[1:] if len(message.text.split()) > 1 else []
             
-            # Проверяем наличие аргументов
-            if len(parts) < 2:
-                # Создаем клавиатуру с кнопками "Список шаблонов" и "Назад"
-                keyboard = types.InlineKeyboardMarkup()
-                list_btn = types.InlineKeyboardButton(
-                    text=f"{EMOJI['list']} Список шаблонов", 
-                    callback_data="cmd_templates_list"
+            if len(args) < 1:
+                # Если команда вызвана без аргументов, показываем инструкцию
+                text = (
+                    f"{EMOJI['info']} <b>Деактивация шаблона</b>\n\n"
+                    f"Для деактивации шаблона отправьте команду в формате:\n"
+                    f"<code>/deactivate_template [id_шаблона]</code>\n\n"
+                    f"Например:\n"
+                    f"<code>/deactivate_template 1</code>"
                 )
+                
+                # Создаем клавиатуру с кнопкой "Назад"
+                keyboard = types.InlineKeyboardMarkup()
                 back_btn = types.InlineKeyboardButton(
                     text=f"{EMOJI['back']} Назад", 
                     callback_data="menu_templates"
                 )
-                keyboard.add(list_btn)
                 keyboard.add(back_btn)
                 
-                # Отправляем информационное сообщение
-                self.send_message(
-                    message.chat.id, 
-                    f"{EMOJI['cross']} <b>Деактивация шаблона</b>\n\n"
-                    f"Для деактивации шаблона отправьте команду в формате:\n"
-                    f"<code>/deactivate_template [id]</code>\n\n"
-                    f"Например:\n"
-                    f"<code>/deactivate_template 1</code>\n\n"
-                    f"Чтобы узнать ID шаблона, используйте команду /get_templates или нажмите кнопку «Список шаблонов».",
-                    reply_markup=keyboard
-                )
+                self.send_message(message.chat.id, text, reply_markup=keyboard)
                 return
             
             # Извлекаем ID шаблона
             try:
-                template_id = int(parts[1])
+                template_id = int(args[0])
             except ValueError:
                 self.send_message(
                     message.chat.id,
@@ -760,54 +664,33 @@ class TemplateHandler(BaseHandler):
                 )
                 return
             
-            # Получаем шаблон из базы для проверки
-            template = self.template_service.get_template_by_id(template_id)
-            
-            if not template:
-                self.send_message(
-                    message.chat.id,
-                    f"{EMOJI['error']} <b>Ошибка:</b> Шаблон с ID {template_id} не найден."
-                )
-                return
-            
-            # Если шаблон уже неактивен, сообщаем об этом
-            if not template.is_active:
-                self.send_message(
-                    message.chat.id,
-                    f"{EMOJI['info']} Шаблон с ID {template_id} уже неактивен."
-                )
-                return
-            
             # Деактивируем шаблон
-            result = self.template_service.toggle_template_active(template_id, False)
-            
-            if result:
+            if self.template_service.deactivate_template(template_id):
+                # Создаем клавиатуру с кнопкой "Назад"
+                keyboard = types.InlineKeyboardMarkup()
+                back_btn = types.InlineKeyboardButton(
+                    text=f"{EMOJI['back']} Назад", 
+                    callback_data="menu_templates"
+                )
+                keyboard.add(back_btn)
+                
                 self.send_message(
                     message.chat.id,
-                    f"{EMOJI['success']} Шаблон с ID {template_id} успешно деактивирован."
+                    f"{EMOJI['success']} Шаблон успешно деактивирован.",
+                    reply_markup=keyboard
                 )
-                logger.info(f"Деактивирован шаблон с ID {template_id} администратором {message.from_user.id}")
+                logger.info(f"Шаблон {template_id} деактивирован администратором {message.from_user.id}")
             else:
                 self.send_message(
                     message.chat.id,
-                    f"{EMOJI['error']} <b>Ошибка:</b> Не удалось деактивировать шаблон."
+                    f"{EMOJI['error']} <b>Ошибка:</b> Шаблон не найден или уже деактивирован."
                 )
                 
         except Exception as e:
             logger.error(f"Ошибка при деактивации шаблона: {str(e)}")
-            
-            # Создаем клавиатуру с кнопкой "Назад"
-            keyboard = types.InlineKeyboardMarkup()
-            back_btn = types.InlineKeyboardButton(
-                text=f"{EMOJI['back']} Назад", 
-                callback_data="menu_templates"
-            )
-            keyboard.add(back_btn)
-            
             self.send_message(
                 message.chat.id,
-                f"{EMOJI['error']} <b>Ошибка:</b> {str(e)}",
-                reply_markup=keyboard
+                f"{EMOJI['error']} <b>Ошибка:</b> {str(e)}"
             )
     
     @admin_required

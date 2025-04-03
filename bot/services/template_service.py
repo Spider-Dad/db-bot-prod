@@ -95,16 +95,30 @@ class TemplateService(BaseService):
         """
         return self.template_repository.add_template(template)
     
-    def update_template(self, template: NotificationTemplate) -> bool:
+    def update_template(self, template_id: int, name: str, category: str, template_text: str) -> bool:
         """
         Обновление шаблона.
         
         Args:
-            template: Обновленный шаблон
+            template_id: ID шаблона
+            name: Новое название шаблона
+            category: Новая категория шаблона
+            template_text: Новый текст шаблона
             
         Returns:
             True, если обновление прошло успешно, иначе False
         """
+        # Получаем шаблон из БД для проверки существования
+        template = self.get_template_by_id(template_id)
+        if not template:
+            return False
+            
+        # Обновляем поля шаблона
+        template.name = name
+        template.category = category
+        template.template = template_text
+        
+        # Обновляем шаблон в БД
         return self.template_repository.update_template(template)
     
     def delete_template(self, template_id: int) -> bool:
@@ -131,6 +145,46 @@ class TemplateService(BaseService):
             True, если изменение прошло успешно, иначе False
         """
         return self.template_repository.toggle_template_active(template_id, is_active)
+    
+    def activate_template(self, template_id: int) -> bool:
+        """
+        Активация шаблона.
+        
+        Args:
+            template_id: ID шаблона
+            
+        Returns:
+            True, если активация прошла успешно, иначе False
+        """
+        # Проверяем сначала, что шаблон существует и не активен
+        template = self.get_template_by_id(template_id)
+        if not template:
+            return False
+        if template.is_active:
+            return True  # Если шаблон уже активен, считаем операцию успешной
+        
+        # Используем существующий метод toggle_template_active
+        return self.toggle_template_active(template_id, True)
+    
+    def deactivate_template(self, template_id: int) -> bool:
+        """
+        Деактивация шаблона.
+        
+        Args:
+            template_id: ID шаблона
+            
+        Returns:
+            True, если деактивация прошла успешно, иначе False
+        """
+        # Проверяем сначала, что шаблон существует и активен
+        template = self.get_template_by_id(template_id)
+        if not template:
+            return False
+        if not template.is_active:
+            return True  # Если шаблон уже неактивен, считаем операцию успешной
+        
+        # Используем существующий метод toggle_template_active
+        return self.toggle_template_active(template_id, False)
     
     def get_all_categories(self) -> List[str]:
         """
