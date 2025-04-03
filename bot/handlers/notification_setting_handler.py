@@ -334,14 +334,10 @@ class NotificationSettingHandler(BaseHandler):
                 return
             
             # Обновляем настройку
-            setting.template_id = template_id
-            setting.days_before = days_before
-            setting.time = time_str
-            
-            result = self.setting_service.update_setting(setting)
+            result = self.setting_service.update_setting(setting_id, days_before, time_str)
             
             if result:
-                # Добавляем кнопку "Назад" к сообщению об успешном обновлении
+                # Создаем клавиатуру с кнопкой "Назад"
                 keyboard = types.InlineKeyboardMarkup()
                 back_btn = types.InlineKeyboardButton(
                     text=f"{EMOJI['back']} Назад", 
@@ -351,10 +347,10 @@ class NotificationSettingHandler(BaseHandler):
                 
                 self.send_message(
                     message.chat.id,
-                    f"{EMOJI['success']} Настройка с ID {setting_id} успешно обновлена.",
+                    f"{EMOJI['success']} Настройка уведомления (ID: {setting_id}) обновлена.",
                     reply_markup=keyboard
                 )
-                logger.info(f"Обновлена настройка с ID {setting_id} администратором {message.from_user.id}")
+                logger.info(f"Настройка {setting_id} обновлена администратором {message.from_user.id}")
             else:
                 self.send_message(
                     message.chat.id,
@@ -443,7 +439,7 @@ class NotificationSettingHandler(BaseHandler):
             result = self.setting_service.delete_setting(setting_id)
             
             if result:
-                # Добавляем кнопку "Назад" к сообщению об успешном удалении
+                # Создаем клавиатуру с кнопкой "Назад"
                 keyboard = types.InlineKeyboardMarkup()
                 back_btn = types.InlineKeyboardButton(
                     text=f"{EMOJI['back']} Назад", 
@@ -453,10 +449,10 @@ class NotificationSettingHandler(BaseHandler):
                 
                 self.send_message(
                     message.chat.id,
-                    f"{EMOJI['success']} Настройка с ID {setting_id} успешно удалена.",
+                    f"{EMOJI['success']} Настройка уведомления (ID: {setting_id}) удалена.",
                     reply_markup=keyboard
                 )
-                logger.info(f"Удалена настройка с ID {setting_id} администратором {message.from_user.id}")
+                logger.info(f"Настройка {setting_id} удалена администратором {message.from_user.id}")
             else:
                 self.send_message(
                     message.chat.id,
@@ -541,7 +537,7 @@ class NotificationSettingHandler(BaseHandler):
             result = self.setting_service.toggle_setting_active(setting_id, True)
             
             if result:
-                # Добавляем кнопку "Назад" к сообщению об успешной активации
+                # Создаем клавиатуру с кнопкой "Назад"
                 keyboard = types.InlineKeyboardMarkup()
                 back_btn = types.InlineKeyboardButton(
                     text=f"{EMOJI['back']} Назад", 
@@ -551,10 +547,10 @@ class NotificationSettingHandler(BaseHandler):
                 
                 self.send_message(
                     message.chat.id,
-                    f"{EMOJI['success']} Настройка с ID {setting_id} успешно активирована.",
+                    f"{EMOJI['success']} Настройка уведомления (ID: {setting_id}) активирована.",
                     reply_markup=keyboard
                 )
-                logger.info(f"Активирована настройка с ID {setting_id} администратором {message.from_user.id}")
+                logger.info(f"Настройка {setting_id} активирована администратором {message.from_user.id}")
             else:
                 self.send_message(
                     message.chat.id,
@@ -639,7 +635,7 @@ class NotificationSettingHandler(BaseHandler):
             result = self.setting_service.toggle_setting_active(setting_id, False)
             
             if result:
-                # Добавляем кнопку "Назад" к сообщению об успешной деактивации
+                # Создаем клавиатуру с кнопкой "Назад"
                 keyboard = types.InlineKeyboardMarkup()
                 back_btn = types.InlineKeyboardButton(
                     text=f"{EMOJI['back']} Назад", 
@@ -649,10 +645,10 @@ class NotificationSettingHandler(BaseHandler):
                 
                 self.send_message(
                     message.chat.id,
-                    f"{EMOJI['success']} Настройка с ID {setting_id} успешно деактивирована.",
+                    f"{EMOJI['success']} Настройка уведомления (ID: {setting_id}) деактивирована.",
                     reply_markup=keyboard
                 )
-                logger.info(f"Деактивирована настройка с ID {setting_id} администратором {message.from_user.id}")
+                logger.info(f"Настройка {setting_id} деактивирована администратором {message.from_user.id}")
             else:
                 self.send_message(
                     message.chat.id,
