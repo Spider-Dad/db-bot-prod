@@ -121,16 +121,31 @@ class TemplateService(BaseService):
         # Обновляем шаблон в БД
         return self.template_repository.update_template(template)
     
-    def delete_template(self, template_id: int) -> bool:
+    def delete_template(self, template_id: int, setting_service=None) -> bool:
         """
         Удаление шаблона.
         
         Args:
             template_id: ID шаблона
+            setting_service: Опциональный сервис настроек для проверки использования шаблона
             
         Returns:
             True, если удаление прошло успешно, иначе False
         """
+        # Проверяем, существует ли шаблон
+        template = self.get_template_by_id(template_id)
+        if not template:
+            logger.warning(f"Попытка удаления несуществующего шаблона с ID {template_id}")
+            return False
+            
+        # Если передан сервис настроек, проверяем, используется ли шаблон
+        if setting_service:
+            settings = setting_service.get_settings_by_template_id(template_id)
+            if settings:
+                logger.warning(f"Невозможно удалить шаблон с ID {template_id}, т.к. он используется в настройках уведомлений")
+                return False
+        
+        # Если проверки пройдены, удаляем шаблон
         return self.template_repository.delete_template(template_id)
     
     def toggle_template_active(self, template_id: int, is_active: bool) -> bool:

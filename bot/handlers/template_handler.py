@@ -395,8 +395,8 @@ class TemplateHandler(BaseHandler):
                 )
                 return
             
-            # Удаляем шаблон
-            if self.template_service.delete_template(template_id):
+            # Удаляем шаблон, передавая setting_service для проверки использования шаблона
+            if self.template_service.delete_template(template_id, setting_service=self.setting_service):
                 # Создаем клавиатуру с кнопкой "Назад"
                 keyboard = types.InlineKeyboardMarkup()
                 back_btn = types.InlineKeyboardButton(
@@ -412,10 +412,46 @@ class TemplateHandler(BaseHandler):
                 )
                 logger.info(f"Шаблон {template_id} удален администратором {message.from_user.id}")
             else:
-                self.send_message(
-                    message.chat.id,
-                    f"{EMOJI['error']} <b>Ошибка:</b> Шаблон не найден."
-                )
+                # Получаем настройки шаблона для проверки причины ошибки
+                settings = self.setting_service.get_settings_by_template_id(template_id)
+                
+                if settings:
+                    # Если настройки существуют, выводим специальное сообщение
+                    error_message = (
+                        f"{EMOJI['error']} <b>Ошибка:</b> Невозможно удалить шаблон, т.к. он используется в настройках уведомлений.\n\n"
+                        f"Сначала удалите или измените следующие настройки:\n"
+                    )
+                    
+                    # Добавляем первые 3 настройки в сообщение (чтобы не перегружать)
+                    for i, setting in enumerate(settings[:3]):
+                        error_message += f"• Настройка ID: {setting.id}, время: {setting.time}, дней до события: {setting.days_before}\n"
+                    
+                    if len(settings) > 3:
+                        error_message += f"...и еще {len(settings) - 3} настроек.\n"
+                    
+                    # Создаем клавиатуру с кнопкой "Настройки" и "Назад"
+                    keyboard = types.InlineKeyboardMarkup()
+                    settings_btn = types.InlineKeyboardButton(
+                        text=f"{EMOJI['setting']} Перейти к настройкам", 
+                        callback_data="menu_settings"
+                    )
+                    back_btn = types.InlineKeyboardButton(
+                        text=f"{EMOJI['back']} Назад", 
+                        callback_data="menu_templates"
+                    )
+                    keyboard.add(settings_btn)
+                    keyboard.add(back_btn)
+                    
+                    self.send_message(
+                        message.chat.id,
+                        error_message,
+                        reply_markup=keyboard
+                    )
+                else:
+                    self.send_message(
+                        message.chat.id,
+                        f"{EMOJI['error']} <b>Ошибка:</b> Шаблон не найден."
+                    )
                 
         except Exception as e:
             logger.error(f"Ошибка при удалении шаблона: {str(e)}")
