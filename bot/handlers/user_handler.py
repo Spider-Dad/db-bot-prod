@@ -406,7 +406,15 @@ class UserHandler(BaseHandler):
                 # Уведомляем пользователя о регистрации
                 self.notify_user_added(telegram_id, username)
                 
-                self.send_message(message.chat.id, success_message)
+                # Создаем клавиатуру с кнопкой "Назад"
+                keyboard = types.InlineKeyboardMarkup()
+                back_btn = types.InlineKeyboardButton(
+                    text=f"{EMOJI['back']} Назад", 
+                    callback_data="menu_users"
+                )
+                keyboard.add(back_btn)
+                
+                self.send_message(message.chat.id, success_message, reply_markup=keyboard)
                 logger.info(f"Администратор {message.from_user.id} добавил пользователя @{username}")
             else:
                 self.send_message(
@@ -585,9 +593,18 @@ class UserHandler(BaseHandler):
             
             if result:
                 # Отправляем сообщение администратору
+                # Создаем клавиатуру с кнопкой "Назад"
+                keyboard = types.InlineKeyboardMarkup()
+                back_btn = types.InlineKeyboardButton(
+                    text=f"{EMOJI['back']} Назад", 
+                    callback_data="menu_users"
+                )
+                keyboard.add(back_btn)
+                
                 self.send_message(
                     message.chat.id,
-                    f"{EMOJI['success']} Пользователь @{username} успешно удален."
+                    f"{EMOJI['success']} Пользователь @{username} успешно удален.",
+                    reply_markup=keyboard
                 )
                 
                 # Отправляем уведомление удаленному пользователю
@@ -673,9 +690,18 @@ class UserHandler(BaseHandler):
             
             if result:
                 # Отправляем сообщение администратору
+                # Создаем клавиатуру с кнопкой "Назад"
+                keyboard = types.InlineKeyboardMarkup()
+                back_btn = types.InlineKeyboardButton(
+                    text=f"{EMOJI['back']} Назад", 
+                    callback_data="menu_users"
+                )
+                keyboard.add(back_btn)
+                
                 self.send_message(
                     message.chat.id,
-                    f"{EMOJI['success']} Пользователь @{username} назначен администратором."
+                    f"{EMOJI['success']} Пользователь @{username} назначен администратором.",
+                    reply_markup=keyboard
                 )
                 
                 # Отправляем уведомление новому администратору
@@ -761,9 +787,18 @@ class UserHandler(BaseHandler):
             
             if result:
                 # Отправляем сообщение администратору, выполнившему команду
+                # Создаем клавиатуру с кнопкой "Назад"
+                keyboard = types.InlineKeyboardMarkup()
+                back_btn = types.InlineKeyboardButton(
+                    text=f"{EMOJI['back']} Назад", 
+                    callback_data="menu_users"
+                )
+                keyboard.add(back_btn)
+                
                 self.send_message(
                     message.chat.id,
-                    f"{EMOJI['success']} У пользователя @{username} отозваны права администратора."
+                    f"{EMOJI['success']} У пользователя @{username} отозваны права администратора.",
+                    reply_markup=keyboard
                 )
                 
                 # Отправляем уведомление пользователю об отзыве прав
