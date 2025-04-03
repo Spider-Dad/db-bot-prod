@@ -33,7 +33,6 @@ class BaseHandler:
         """
         self.bot = bot
         self.keyboard_manager = KeyboardManager()
-        self._next_handlers = {}  # Словарь для хранения следующих обработчиков
         
     def register_handlers(self) -> None:
         """
@@ -42,26 +41,6 @@ class BaseHandler:
         Переопределяется в дочерних классах для регистрации конкретных обработчиков.
         """
         pass
-    
-    def set_next_handler(self, chat_id: int, handler: Callable[[telebot.types.Message], Any]) -> None:
-        """
-        Устанавливает следующий обработчик сообщения для указанного чата.
-        
-        Args:
-            chat_id: ID чата
-            handler: Функция-обработчик, которая будет вызвана для следующего сообщения
-        """
-        self._next_handlers[chat_id] = handler
-        
-        # Регистрируем обработчик, который будет перехватывать следующее сообщение
-        @self.bot.message_handler(func=lambda message: message.chat.id == chat_id)
-        def next_message_handler(message: telebot.types.Message):
-            if chat_id in self._next_handlers:
-                handler = self._next_handlers.pop(chat_id)
-                handler(message)
-            else:
-                # Если обработчик не найден, пропускаем сообщение
-                pass
     
     def is_admin(self, user_id: int) -> bool:
         """
