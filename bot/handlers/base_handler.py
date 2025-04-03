@@ -13,6 +13,7 @@ import re
 from bot.core.models import User
 from config import ADMIN_IDS
 from bot.utils.keyboard_manager import KeyboardManager
+from bot.constants import EMOJI
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,7 @@ class BaseHandler:
         """
         self.bot = bot
         self.keyboard_manager = KeyboardManager()
+        self._next_step_handlers = {}  # Словарь для хранения обработчиков следующего шага
         
     def register_handlers(self) -> None:
         """
@@ -290,4 +292,36 @@ class BaseHandler:
                 parse_mode='HTML'
             )
         except Exception as e:
-            logger.error(f"Ошибка обновления меню: {str(e)}") 
+            logger.error(f"Ошибка обновления меню: {str(e)}")
+    
+    def set_next_handler(self, chat_id: int, handler_func: Callable) -> None:
+        """
+        Устанавливает обработчик для следующего сообщения от пользователя.
+        
+        Args:
+            chat_id: Идентификатор чата
+            handler_func: Функция-обработчик следующего сообщения
+        """
+        self._next_step_handlers[chat_id] = handler_func
+        
+        # Регистрируем обработчик для следующего сообщения от этого пользователя
+        self.bot.register_next_step_handler_by_chat_id(chat_id, 
+            lambda message: self._process_next_step(message, chat_id))
+    
+    def _process_next_step(self, message: telebot.types.Message, chat_id: int) -> None:
+        """
+        Обрабатывает следующее сообщение от пользователя.
+        
+        Args:
+            message: Сообщение от пользователя
+            chat_id: Идентификатор чата
+        """
+        try:
+            if chat_id in self._next_step_handlers:
+                handler = self._next_step_handlers.pop(chat_id)  # Удаляем обработчик после использования
+                handler(message)  # Вызываем обработчик
+            else:
+                logger.warning(f"Обработчик для чата {chat_id} не найден")
+        except Exception as e:
+            logger.error(f"Ошибка в обработчике следующего шага для чата {chat_id}: {str(e)}")
+            self.send_message(chat_id, f"{EMOJI['error']} <b>Произошла ошибка.</b> Пожалуйста, попробуйте еще раз.") 
