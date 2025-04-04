@@ -52,8 +52,8 @@ SAMPLE_TEMPLATE_DATA = {
     "name": "Иван Иванов",
     "first_name": "Иван",
     "last_name": "Иванов",
-    "date": "01.01.2025",
-    "date_before": "31.12.2024",
+    "date": "01 января",
+    "date_before": "31 декабря",
     "days_until": "3",
     "phone_pay": "7 999 999 99 99",
     "name_pay": "Иванов Иван Иванович"
