@@ -270,7 +270,9 @@ class TemplateHandler(BaseHandler):
         try:
             # Разбираем аргументы команды так, чтобы сохранить переносы строк в тексте шаблона
             # Формат: /update_template <id> <name> <category> <template_text>
-            parts = message.text.split(' ', 4)
+            # Важно: используем split(maxsplit=4), чтобы 4-й элемент содержал весь остаток текста,
+            # включая переносы строк и пробелы; это предотвращает разрыв первой строки шаблона
+            parts = message.text.split(maxsplit=4)
 
             if len(parts) < 5:
                 # Если команда вызвана без аргументов, показываем инструкцию
